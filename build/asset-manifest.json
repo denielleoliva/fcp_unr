@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/fcp_unr/static/css/main.9f088a99.css",
-    "main.js": "/fcp_unr/static/js/main.756160b3.js",
+    "main.js": "/fcp_unr/static/js/main.8ec80c70.js",
     "index.html": "/fcp_unr/index.html",
     "main.9f088a99.css.map": "/fcp_unr/static/css/main.9f088a99.css.map",
-    "main.756160b3.js.map": "/fcp_unr/static/js/main.756160b3.js.map"
+    "main.8ec80c70.js.map": "/fcp_unr/static/js/main.8ec80c70.js.map"
   },
   "entrypoints": [
     "static/css/main.9f088a99.css",
-    "static/js/main.756160b3.js"
+    "static/js/main.8ec80c70.js"
   ]
 }

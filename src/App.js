@@ -857,6 +857,8 @@ export default function VectorDrawTTS() {
       const centerY = (minY + maxY) / 2;
       const width = maxX - minX;
       const height = maxY - minY;
+      const area = width * height;
+      const aspectRatio = width / height;
 
       return {
         path,
@@ -868,6 +870,8 @@ export default function VectorDrawTTS() {
         maxY,
         width,
         height,
+        area,
+        aspectRatio,
         points
       };
     });
@@ -887,64 +891,135 @@ export default function VectorDrawTTS() {
     const topThird = allMinY + faceHeight * 0.33;
     const middleThird = allMinY + faceHeight * 0.66;
 
-    // Find potential eyes (upper half, circular/oval shapes)
-    const potentialEyes = pathData.filter(p => 
-      p.centerY < topThird + faceHeight * 0.2 &&
-      p.centerY > allMinY &&
-      (p.path.type === 'circle' || (p.width > 10 && p.height > 10))
-    ).sort((a, b) => a.centerX - b.centerX);
+    // Find potential eyes - improved criteria
+    const potentialEyes = pathData.filter(p => {
+      // Must be in upper third of face
+      const inUpperRegion = p.centerY < topThird + faceHeight * 0.15;
+      
+      // Reasonable eye size (not too big or small)
+      const reasonableSize = p.width > 15 && p.width < faceWidth * 0.4 && 
+                            p.height > 10 && p.height < faceHeight * 0.3;
+      
+      // Aspect ratio close to circular/oval (0.5 to 2.0)
+      const goodAspectRatio = p.aspectRatio > 0.5 && p.aspectRatio < 2.0;
+      
+      // Prefer circles, but accept reasonable closed paths
+      const goodType = p.path.type === 'circle' || 
+                       (p.path.type === 'path' && p.points.length > 5);
+      
+      return inUpperRegion && reasonableSize && goodAspectRatio && goodType;
+    }).sort((a, b) => {
+      // Sort by: 1) How centered horizontally, 2) Similar Y position, 3) Similar size
+      const aCenteredness = Math.abs(a.centerX - faceCenterX);
+      const bCenteredness = Math.abs(b.centerX - faceCenterX);
+      return aCenteredness - bCenteredness;
+    });
+
+    // If we have potential eyes, pick the two that are:
+    // 1. Most horizontally separated
+    // 2. At similar Y heights
+    // 3. Similar sizes
+    let leftEye = null;
+    let rightEye = null;
+    
+    if (potentialEyes.length >= 2) {
+      // Find pairs that are well-separated horizontally and aligned vertically
+      let bestPair = null;
+      let bestScore = -1;
+      
+      for (let i = 0; i < potentialEyes.length; i++) {
+        for (let j = i + 1; j < potentialEyes.length; j++) {
+          const eye1 = potentialEyes[i];
+          const eye2 = potentialEyes[j];
+          
+          // Calculate horizontal separation
+          const separation = Math.abs(eye1.centerX - eye2.centerX);
+          
+          // Calculate vertical alignment (prefer eyes at similar heights)
+          const yDiff = Math.abs(eye1.centerY - eye2.centerY);
+          
+          // Calculate size similarity
+          const sizeDiff = Math.abs(eye1.area - eye2.area);
+          const avgArea = (eye1.area + eye2.area) / 2;
+          const sizeRatio = sizeDiff / avgArea;
+          
+          // Good separation (at least 20% of face width)
+          const goodSeparation = separation > faceWidth * 0.2;
+          
+          // Good alignment (Y difference less than 15% of face height)
+          const goodAlignment = yDiff < faceHeight * 0.15;
+          
+          // Similar sizes (size difference less than 50% of average)
+          const similarSize = sizeRatio < 0.5;
+          
+          if (goodSeparation && goodAlignment && similarSize) {
+            // Score based on separation (prefer wider apart) and alignment
+            const score = separation - (yDiff * 2) - (sizeDiff * 0.1);
+            
+            if (score > bestScore) {
+              bestScore = score;
+              // Assign left/right based on X position
+              if (eye1.centerX < eye2.centerX) {
+                bestPair = { left: eye1, right: eye2 };
+              } else {
+                bestPair = { left: eye2, right: eye1 };
+              }
+            }
+          }
+        }
+      }
+      
+      if (bestPair) {
+        leftEye = bestPair.left;
+        rightEye = bestPair.right;
+      } else if (potentialEyes.length >= 2) {
+        // Fallback: just use the two leftmost and rightmost
+        const sorted = [...potentialEyes].sort((a, b) => a.centerX - b.centerX);
+        leftEye = sorted[0];
+        rightEye = sorted[sorted.length - 1];
+      }
+    } else if (potentialEyes.length === 1) {
+      // Only one eye found
+      const eye = potentialEyes[0];
+      if (eye.centerX < faceCenterX) {
+        leftEye = eye;
+      } else {
+        rightEye = eye;
+      }
+    }
 
     // Find potential eyebrows (above eyes, horizontal shapes)
     const potentialEyebrows = pathData.filter(p =>
       p.centerY < topThird &&
       p.centerY > allMinY - 50 &&
-      p.width > p.height
+      p.width > p.height && // More horizontal than vertical
+      p.width > 20 // Reasonable minimum width
     ).sort((a, b) => a.centerX - b.centerX);
 
     // Find potential mouth (lower third, larger horizontal shape)
     const potentialMouths = pathData.filter(p =>
       p.centerY > middleThird &&
-      p.width > 30
-    ).sort((a, b) => b.width - a.width);
+      p.width > 40 && // Reasonable minimum width
+      p.width > p.height // More horizontal than vertical
+    ).sort((a, b) => b.width - a.width); // Sort by width (largest first)
 
     const newControlPoints = { ...controlPoints };
 
     // Set eyes
-    if (potentialEyes.length >= 2) {
-      const leftEye = potentialEyes[0];
-      const rightEye = potentialEyes[potentialEyes.length >= 2 ? 1 : 0];
-      
-      // Left eye
+    if (leftEye) {
       newControlPoints.leftEyeCenter = { x: leftEye.centerX, y: leftEye.centerY };
       newControlPoints.leftEyeTop = { x: leftEye.centerX, y: leftEye.minY };
       newControlPoints.leftEyeBottom = { x: leftEye.centerX, y: leftEye.maxY };
       newControlPoints.leftEyeInner = { x: leftEye.minX, y: leftEye.centerY };
       newControlPoints.leftEyeOuter = { x: leftEye.maxX, y: leftEye.centerY };
-      
-      // Right eye
+    }
+    
+    if (rightEye) {
       newControlPoints.rightEyeCenter = { x: rightEye.centerX, y: rightEye.centerY };
       newControlPoints.rightEyeTop = { x: rightEye.centerX, y: rightEye.minY };
       newControlPoints.rightEyeBottom = { x: rightEye.centerX, y: rightEye.maxY };
       newControlPoints.rightEyeInner = { x: rightEye.minX, y: rightEye.centerY };
       newControlPoints.rightEyeOuter = { x: rightEye.maxX, y: rightEye.centerY };
-    } else if (potentialEyes.length === 1) {
-      // Only one eye found - use it as reference
-      const eye = potentialEyes[0];
-      if (eye.centerX < faceCenterX) {
-        // It's the left eye
-        newControlPoints.leftEyeCenter = { x: eye.centerX, y: eye.centerY };
-        newControlPoints.leftEyeTop = { x: eye.centerX, y: eye.minY };
-        newControlPoints.leftEyeBottom = { x: eye.centerX, y: eye.maxY };
-        newControlPoints.leftEyeInner = { x: eye.minX, y: eye.centerY };
-        newControlPoints.leftEyeOuter = { x: eye.maxX, y: eye.centerY };
-      } else {
-        // It's the right eye
-        newControlPoints.rightEyeCenter = { x: eye.centerX, y: eye.centerY };
-        newControlPoints.rightEyeTop = { x: eye.centerX, y: eye.minY };
-        newControlPoints.rightEyeBottom = { x: eye.centerX, y: eye.maxY };
-        newControlPoints.rightEyeInner = { x: eye.minX, y: eye.centerY };
-        newControlPoints.rightEyeOuter = { x: eye.maxX, y: eye.centerY };
-      }
     }
 
     // Set eyebrows
@@ -995,7 +1070,19 @@ export default function VectorDrawTTS() {
 
     setControlPoints(newControlPoints);
     setMode('rig'); // Switch to rig mode to show results
-    alert('Landmarks detected! Switch to Rig Points mode to adjust if needed.');
+    
+    // Provide feedback
+    const detected = [];
+    if (leftEye && rightEye) detected.push('both eyes');
+    else if (leftEye || rightEye) detected.push('one eye');
+    if (potentialEyebrows.length > 0) detected.push('eyebrows');
+    if (potentialMouths.length > 0) detected.push('mouth');
+    
+    if (detected.length > 0) {
+      alert(`Detected: ${detected.join(', ')}. You can now adjust the points manually in Rig mode if needed.`);
+    } else {
+      alert('Could not detect facial features. Try making your eyes more circular and distinct from each other.');
+    }
   };
 
   const getBrushStyle = (brushStyle) => {
@@ -1632,7 +1719,7 @@ export default function VectorDrawTTS() {
                   onClick={autoDetectLandmarks}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium"
                 >
-                  Auto Detect Landmarks
+                  🤖 Auto Detect Landmarks
                 </button>
                 <button
                   onClick={resetControlPoints}
