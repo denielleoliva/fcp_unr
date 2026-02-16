@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Download, Play, Trash2, Square, Circle, Pen, Move, Save } from 'lucide-react';
+import { Download, Play, Trash2, Square, Circle, Pen, Move, Save, Undo } from 'lucide-react';
 
 export default function VectorDrawTTS() {
   const [tool, setTool] = useState('pen');
   const [mode, setMode] = useState('draw');
   const [color, setColor] = useState('#000000');
+  const [penSize, setPenSize] = useState(3);
+  const [brushStyle, setBrushStyle] = useState('solid'); // 'solid', 'dashed', 'dotted', 'sketch'
   const [paths, setPaths] = useState([]);
+  const [pathHistory, setPathHistory] = useState([]); // For undo functionality
   const [currentPath, setCurrentPath] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [text, setText] = useState('');
@@ -17,14 +20,37 @@ export default function VectorDrawTTS() {
   const svgRef = useRef(null);
 
   const [controlPoints, setControlPoints] = useState({
-    leftEye: { x: 300, y: 200 },
-    rightEye: { x: 500, y: 200 },
-    leftEyebrow: { x: 300, y: 150 },
-    rightEyebrow: { x: 500, y: 150 },
-    mouthLeft: { x: 350, y: 350 },
-    mouthRight: { x: 450, y: 350 },
-    mouthTop: { x: 400, y: 330 },
-    mouthBottom: { x: 400, y: 370 }
+    // Eyes (5 points each - center + 4 corners for detailed eye shape)
+    leftEyeCenter: { x: 250, y: 200 },
+    leftEyeTop: { x: 250, y: 185 },
+    leftEyeBottom: { x: 250, y: 215 },
+    leftEyeInner: { x: 235, y: 200 },
+    leftEyeOuter: { x: 265, y: 200 },
+    
+    rightEyeCenter: { x: 550, y: 200 },
+    rightEyeTop: { x: 550, y: 185 },
+    rightEyeBottom: { x: 550, y: 215 },
+    rightEyeInner: { x: 535, y: 200 },
+    rightEyeOuter: { x: 565, y: 200 },
+    
+    // Eyebrows (3 points each for curved brows)
+    leftEyebrowInner: { x: 235, y: 150 },
+    leftEyebrowMiddle: { x: 250, y: 145 },
+    leftEyebrowOuter: { x: 265, y: 150 },
+    
+    rightEyebrowInner: { x: 535, y: 150 },
+    rightEyebrowMiddle: { x: 550, y: 145 },
+    rightEyebrowOuter: { x: 565, y: 150 },
+    
+    // Mouth (8 points for detailed mouth control)
+    mouthLeftCorner: { x: 330, y: 360 },
+    mouthRightCorner: { x: 470, y: 360 },
+    mouthTopLeft: { x: 360, y: 340 },
+    mouthTopCenter: { x: 400, y: 335 },
+    mouthTopRight: { x: 440, y: 340 },
+    mouthBottomLeft: { x: 360, y: 380 },
+    mouthBottomCenter: { x: 400, y: 385 },
+    mouthBottomRight: { x: 440, y: 380 }
   });
 
   const [draggingPoint, setDraggingPoint] = useState(null);
@@ -40,13 +66,32 @@ export default function VectorDrawTTS() {
     const rect = svgRef.current.getBoundingClientRect();
     const scaleX = 800 / rect.width;
     const scaleY = 600 / rect.height;
+    
+    // Handle touch events
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+      clientX = e.changedTouches[0].clientX;
+      clientY = e.changedTouches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
     };
   };
 
   const handleMouseDown = (e) => {
+    // Prevent default touch behavior (scrolling)
+    if (e.touches) {
+      e.preventDefault();
+    }
+    
     const pos = getMousePos(e);
 
     if (mode === 'rig') {
@@ -63,6 +108,12 @@ export default function VectorDrawTTS() {
 
     if (mode !== 'draw') return;
 
+    // Handle eraser
+    if (tool === 'eraser') {
+      handleEraser(pos);
+      return;
+    }
+
     setIsDrawing(true);
     
     if (tool === 'pen') {
@@ -72,7 +123,8 @@ export default function VectorDrawTTS() {
         color: color,
         fill: 'none',
         stroke: color,
-        strokeWidth: 3
+        strokeWidth: penSize,
+        brushStyle: brushStyle
       });
     } else if (tool === 'rect') {
       setCurrentPath({
@@ -86,7 +138,7 @@ export default function VectorDrawTTS() {
         color: color,
         fill: color,
         stroke: color,
-        strokeWidth: 2
+        strokeWidth: penSize
       });
     } else if (tool === 'circle') {
       setCurrentPath({
@@ -99,12 +151,17 @@ export default function VectorDrawTTS() {
         color: color,
         fill: color,
         stroke: color,
-        strokeWidth: 2
+        strokeWidth: penSize
       });
     }
   };
 
   const handleMouseMove = (e) => {
+    // Prevent default touch behavior (scrolling)
+    if (e.touches) {
+      e.preventDefault();
+    }
+    
     const pos = getMousePos(e);
 
     if (draggingPoint) {
@@ -145,7 +202,9 @@ export default function VectorDrawTTS() {
 
   const handleMouseUp = () => {
     if (currentPath) {
-      setPaths([...paths, currentPath]);
+      const newPaths = [...paths, currentPath];
+      setPaths(newPaths);
+      setPathHistory([...pathHistory, paths]); // Save current state before adding
       setCurrentPath(null);
     }
     setIsDrawing(false);
@@ -176,6 +235,403 @@ export default function VectorDrawTTS() {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'face-rigging.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAnimationHTML = () => {
+    // Create standalone HTML file with animation
+    const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated Face</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        svg {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+        #controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+        textarea {
+            width: 100%;
+            max-width: 600px;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            resize: vertical;
+        }
+        button {
+            margin-top: 10px;
+            padding: 12px 24px;
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #7c3aed;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <svg id="faceSVG" width="800" height="600" viewBox="0 0 800 600">
+            <rect width="800" height="600" fill="white" />
+        </svg>
+        <div id="controls">
+            <textarea id="textInput" rows="3" placeholder="Enter text to speak...">Hello! I am an animated face.</textarea>
+            <br>
+            <button id="animateBtn">Animate with Speech</button>
+        </div>
+    </div>
+
+    <script>
+        // Face data
+        const paths = ${JSON.stringify(paths)};
+        const controlPoints = ${JSON.stringify(controlPoints)};
+        
+        // Animation state
+        let isAnimating = false;
+        let mouthOpenAmount = 0;
+        let blinkAmount = 0;
+        let pupilOffsetX = 0;
+        let pupilOffsetY = 0;
+
+        // Get path animation type
+        function getPathAnimationType(path) {
+            const cp = controlPoints;
+            let pathCenterX, pathCenterY;
+            
+            if (path.type === 'circle') {
+                pathCenterX = path.cx;
+                pathCenterY = path.cy;
+            } else if (path.type === 'rect') {
+                pathCenterX = path.x + path.width / 2;
+                pathCenterY = path.y + path.height / 2;
+            } else if (path.type === 'path') {
+                const points = [];
+                const commands = path.d.match(/[ML]\\s*([\\d.]+)\\s+([\\d.]+)/g);
+                if (commands) {
+                    commands.forEach(cmd => {
+                        const match = cmd.match(/([\\d.]+)\\s+([\\d.]+)/);
+                        if (match) {
+                            points.push({ x: parseFloat(match[1]), y: parseFloat(match[2]) });
+                        }
+                    });
+                }
+                if (points.length === 0) return null;
+                const minX = Math.min(...points.map(p => p.x));
+                const maxX = Math.max(...points.map(p => p.x));
+                const minY = Math.min(...points.map(p => p.y));
+                const maxY = Math.max(...points.map(p => p.y));
+                pathCenterX = (minX + maxX) / 2;
+                pathCenterY = (minY + maxY) / 2;
+            } else {
+                return null;
+            }
+
+            const distanceToPoint = (px, py) => {
+                const dx = pathCenterX - px;
+                const dy = pathCenterY - py;
+                return Math.sqrt(dx * dx + dy * dy);
+            };
+
+            const distToLeftEye = distanceToPoint(cp.leftEye.x, cp.leftEye.y);
+            const distToRightEye = distanceToPoint(cp.rightEye.x, cp.rightEye.y);
+            
+            if (distToLeftEye < 15) return { type: 'leftPupil', eyeX: cp.leftEye.x, eyeY: cp.leftEye.y };
+            if (distToRightEye < 15) return { type: 'rightPupil', eyeX: cp.rightEye.x, eyeY: cp.rightEye.y };
+            if (distToLeftEye < 40) return { type: 'leftEye', eyeX: cp.leftEye.x, eyeY: cp.leftEye.y };
+            if (distToRightEye < 40) return { type: 'rightEye', eyeX: cp.rightEye.x, eyeY: cp.rightEye.y };
+
+            const mouthCenterX = (cp.mouthLeft.x + cp.mouthRight.x) / 2;
+            const mouthCenterY = (cp.mouthTop.y + cp.mouthBottom.y) / 2;
+            const distToMouth = distanceToPoint(mouthCenterX, mouthCenterY);
+            
+            if (distToMouth < 120) return { type: 'mouth', centerX: pathCenterX, centerY: pathCenterY };
+
+            const distToLeftBrow = distanceToPoint(cp.leftEyebrow.x, cp.leftEyebrow.y);
+            const distToRightBrow = distanceToPoint(cp.rightEyebrow.x, cp.rightEyebrow.y);
+            
+            if (distToLeftBrow < 60 || distToRightBrow < 60) return { type: 'eyebrow' };
+
+            return null;
+        }
+
+        // Render animated path
+        function renderAnimatedPath(path, svg) {
+            const animInfo = getPathAnimationType(path);
+            let animatedPath = { ...path };
+            
+            if (animInfo && isAnimating) {
+                if (animInfo.type === 'mouth' && mouthOpenAmount > 0) {
+                    const scaleY = 1 + (mouthOpenAmount * 0.8);
+                    if (path.type === 'circle') {
+                        animatedPath.r = path.r * scaleY;
+                    } else if (path.type === 'rect') {
+                        const newHeight = path.height * scaleY;
+                        const heightDiff = newHeight - path.height;
+                        animatedPath.y = path.y - heightDiff / 2;
+                        animatedPath.height = newHeight;
+                    } else if (path.type === 'path') {
+                        const centerY = animInfo.centerY;
+                        const commands = path.d.match(/[ML]\\s*([\\d.]+)\\s+([\\d.]+)/g);
+                        if (commands) {
+                            let newD = '';
+                            commands.forEach(cmd => {
+                                const match = cmd.match(/([ML])\\s*([\\d.]+)\\s+([\\d.]+)/);
+                                if (match) {
+                                    const command = match[1];
+                                    const x = parseFloat(match[2]);
+                                    const y = parseFloat(match[3]);
+                                    const scaledY = centerY + (y - centerY) * scaleY;
+                                    newD += command + ' ' + x + ' ' + scaledY + ' ';
+                                }
+                            });
+                            animatedPath.d = newD.trim();
+                        }
+                    }
+                } else if (animInfo.type === 'eyebrow' && mouthOpenAmount > 0) {
+                    const translateY = -5 * mouthOpenAmount;
+                    if (path.type === 'circle') {
+                        animatedPath.cy = path.cy + translateY;
+                    } else if (path.type === 'rect') {
+                        animatedPath.y = path.y + translateY;
+                    } else if (path.type === 'path') {
+                        const commands = path.d.match(/[ML]\\s*([\\d.]+)\\s+([\\d.]+)/g);
+                        if (commands) {
+                            let newD = '';
+                            commands.forEach(cmd => {
+                                const match = cmd.match(/([ML])\\s*([\\d.]+)\\s+([\\d.]+)/);
+                                if (match) {
+                                    const command = match[1];
+                                    const x = parseFloat(match[2]);
+                                    const y = parseFloat(match[3]) + translateY;
+                                    newD += command + ' ' + x + ' ' + y + ' ';
+                                }
+                            });
+                            animatedPath.d = newD.trim();
+                        }
+                    }
+                } else if ((animInfo.type === 'leftEye' || animInfo.type === 'rightEye') && blinkAmount > 0) {
+                    const scaleY = 1 - (blinkAmount * 0.9);
+                    if (path.type === 'circle') {
+                        animatedPath.r = path.r * scaleY;
+                    } else if (path.type === 'rect') {
+                        const newHeight = path.height * scaleY;
+                        const heightDiff = path.height - newHeight;
+                        animatedPath.y = path.y + heightDiff / 2;
+                        animatedPath.height = newHeight;
+                    } else if (path.type === 'path') {
+                        const centerY = animInfo.eyeY;
+                        const commands = path.d.match(/[ML]\\s*([\\d.]+)\\s+([\\d.]+)/g);
+                        if (commands) {
+                            let newD = '';
+                            commands.forEach(cmd => {
+                                const match = cmd.match(/([ML])\\s*([\\d.]+)\\s+([\\d.]+)/);
+                                if (match) {
+                                    const command = match[1];
+                                    const x = parseFloat(match[2]);
+                                    const y = parseFloat(match[3]);
+                                    const scaledY = centerY + (y - centerY) * scaleY;
+                                    newD += command + ' ' + x + ' ' + scaledY + ' ';
+                                }
+                            });
+                            animatedPath.d = newD.trim();
+                        }
+                    }
+                } else if ((animInfo.type === 'leftPupil' || animInfo.type === 'rightPupil') && (pupilOffsetX !== 0 || pupilOffsetY !== 0)) {
+                    if (path.type === 'circle') {
+                        animatedPath.cx = path.cx + pupilOffsetX;
+                        animatedPath.cy = path.cy + pupilOffsetY;
+                    } else if (path.type === 'rect') {
+                        animatedPath.x = path.x + pupilOffsetX;
+                        animatedPath.y = path.y + pupilOffsetY;
+                    } else if (path.type === 'path') {
+                        const commands = path.d.match(/[ML]\\s*([\\d.]+)\\s+([\\d.]+)/g);
+                        if (commands) {
+                            let newD = '';
+                            commands.forEach(cmd => {
+                                const match = cmd.match(/([ML])\\s*([\\d.]+)\\s+([\\d.]+)/);
+                                if (match) {
+                                    const command = match[1];
+                                    const x = parseFloat(match[2]) + pupilOffsetX;
+                                    const y = parseFloat(match[3]) + pupilOffsetY;
+                                    newD += command + ' ' + x + ' ' + y + ' ';
+                                }
+                            });
+                            animatedPath.d = newD.trim();
+                        }
+                    }
+                }
+            }
+
+            let element;
+            if (animatedPath.type === 'path') {
+                element = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                element.setAttribute('d', animatedPath.d);
+                element.setAttribute('fill', animatedPath.fill);
+                element.setAttribute('stroke', animatedPath.stroke);
+                element.setAttribute('stroke-width', animatedPath.strokeWidth);
+                element.setAttribute('stroke-linecap', 'round');
+                element.setAttribute('stroke-linejoin', 'round');
+            } else if (animatedPath.type === 'rect') {
+                element = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                element.setAttribute('x', animatedPath.x);
+                element.setAttribute('y', animatedPath.y);
+                element.setAttribute('width', animatedPath.width);
+                element.setAttribute('height', animatedPath.height);
+                element.setAttribute('fill', animatedPath.fill);
+                element.setAttribute('stroke', animatedPath.stroke);
+                element.setAttribute('stroke-width', animatedPath.strokeWidth);
+            } else if (animatedPath.type === 'circle') {
+                element = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                element.setAttribute('cx', animatedPath.cx);
+                element.setAttribute('cy', animatedPath.cy);
+                element.setAttribute('r', animatedPath.r);
+                element.setAttribute('fill', animatedPath.fill);
+                element.setAttribute('stroke', animatedPath.stroke);
+                element.setAttribute('stroke-width', animatedPath.strokeWidth);
+            }
+            
+            element.style.transition = 'all 0.1s ease-out';
+            return element;
+        }
+
+        // Render all paths
+        function render() {
+            const svg = document.getElementById('faceSVG');
+            // Clear previous paths (keep background rect)
+            while (svg.children.length > 1) {
+                svg.removeChild(svg.lastChild);
+            }
+            
+            paths.forEach(path => {
+                const element = renderAnimatedPath(path, svg);
+                svg.appendChild(element);
+            });
+        }
+
+        // Animation functions
+        function animateMouth() {
+            const amplitude = 0.5 + Math.random() * 0.5;
+            mouthOpenAmount = amplitude;
+            render();
+            setTimeout(() => {
+                mouthOpenAmount = 0;
+                render();
+            }, 80 + Math.random() * 120);
+        }
+
+        function animateBlink() {
+            blinkAmount = 1;
+            render();
+            setTimeout(() => {
+                blinkAmount = 0;
+                render();
+            }, 150);
+        }
+
+        function animatePupils() {
+            const maxOffset = 3;
+            pupilOffsetX = (Math.random() - 0.5) * maxOffset;
+            pupilOffsetY = (Math.random() - 0.5) * maxOffset;
+            render();
+        }
+
+        // Animate with TTS
+        function animateWithTTS() {
+            const text = document.getElementById('textInput').value;
+            if (!text.trim()) {
+                alert('Please enter text to speak');
+                return;
+            }
+
+            isAnimating = true;
+            mouthOpenAmount = 0;
+            blinkAmount = 0;
+            pupilOffsetX = 0;
+            pupilOffsetY = 0;
+            
+            const btn = document.getElementById('animateBtn');
+            btn.disabled = true;
+            btn.textContent = 'Speaking...';
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.9;
+            utterance.pitch = 1;
+
+            let mouthInterval, blinkInterval, pupilInterval;
+            
+            utterance.onstart = () => {
+                mouthInterval = setInterval(animateMouth, 150);
+                blinkInterval = setInterval(animateBlink, 2000 + Math.random() * 2000);
+                pupilInterval = setInterval(animatePupils, 1000 + Math.random() * 1000);
+            };
+
+            utterance.onend = () => {
+                clearInterval(mouthInterval);
+                clearInterval(blinkInterval);
+                clearInterval(pupilInterval);
+                isAnimating = false;
+                mouthOpenAmount = 0;
+                blinkAmount = 0;
+                pupilOffsetX = 0;
+                pupilOffsetY = 0;
+                render();
+                btn.disabled = false;
+                btn.textContent = 'Animate with Speech';
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Initial render
+        render();
+
+        // Event listener
+        document.getElementById('animateBtn').addEventListener('click', animateWithTTS);
+    </script>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'animated-face.html';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -255,21 +711,304 @@ export default function VectorDrawTTS() {
   };
 
   const clearCanvas = () => {
+    setPathHistory([...pathHistory, paths]); // Save before clearing
     setPaths([]);
     setCurrentPath(null);
   };
 
+  const undo = () => {
+    if (pathHistory.length > 0) {
+      const previousState = pathHistory[pathHistory.length - 1];
+      setPaths(previousState);
+      setPathHistory(pathHistory.slice(0, -1));
+    }
+  };
+
+  const handleEraser = (pos) => {
+    // Find and remove path at position
+    const clickRadius = 20; // Detection radius for eraser
+    
+    for (let i = paths.length - 1; i >= 0; i--) {
+      const path = paths[i];
+      let shouldDelete = false;
+      
+      if (path.type === 'circle') {
+        const dx = pos.x - path.cx;
+        const dy = pos.y - path.cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= path.r + clickRadius) shouldDelete = true;
+      } else if (path.type === 'rect') {
+        if (pos.x >= path.x - clickRadius && 
+            pos.x <= path.x + path.width + clickRadius &&
+            pos.y >= path.y - clickRadius && 
+            pos.y <= path.y + path.height + clickRadius) {
+          shouldDelete = true;
+        }
+      } else if (path.type === 'path') {
+        // For paths, check if click is near any point
+        const commands = path.d.match(/[ML]\s*([\d.]+)\s+([\d.]+)/g);
+        if (commands) {
+          for (const cmd of commands) {
+            const match = cmd.match(/([\d.]+)\s+([\d.]+)/);
+            if (match) {
+              const px = parseFloat(match[1]);
+              const py = parseFloat(match[2]);
+              const dx = pos.x - px;
+              const dy = pos.y - py;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist <= clickRadius) {
+                shouldDelete = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      if (shouldDelete) {
+        setPathHistory([...pathHistory, paths]); // Save before erasing
+        const newPaths = [...paths];
+        newPaths.splice(i, 1);
+        setPaths(newPaths);
+        break; // Only erase one path at a time
+      }
+    }
+  };
+
   const resetControlPoints = () => {
     setControlPoints({
-      leftEye: { x: 300, y: 200 },
-      rightEye: { x: 500, y: 200 },
-      leftEyebrow: { x: 300, y: 150 },
-      rightEyebrow: { x: 500, y: 150 },
-      mouthLeft: { x: 350, y: 350 },
-      mouthRight: { x: 450, y: 350 },
-      mouthTop: { x: 400, y: 330 },
-      mouthBottom: { x: 400, y: 370 }
+      // Eyes (5 points each)
+      leftEyeCenter: { x: 250, y: 200 },
+      leftEyeTop: { x: 250, y: 185 },
+      leftEyeBottom: { x: 250, y: 215 },
+      leftEyeInner: { x: 235, y: 200 },
+      leftEyeOuter: { x: 265, y: 200 },
+      
+      rightEyeCenter: { x: 550, y: 200 },
+      rightEyeTop: { x: 550, y: 185 },
+      rightEyeBottom: { x: 550, y: 215 },
+      rightEyeInner: { x: 535, y: 200 },
+      rightEyeOuter: { x: 565, y: 200 },
+      
+      // Eyebrows (3 points each)
+      leftEyebrowInner: { x: 235, y: 150 },
+      leftEyebrowMiddle: { x: 250, y: 145 },
+      leftEyebrowOuter: { x: 265, y: 150 },
+      
+      rightEyebrowInner: { x: 535, y: 150 },
+      rightEyebrowMiddle: { x: 550, y: 145 },
+      rightEyebrowOuter: { x: 565, y: 150 },
+      
+      // Mouth (8 points)
+      mouthLeftCorner: { x: 330, y: 360 },
+      mouthRightCorner: { x: 470, y: 360 },
+      mouthTopLeft: { x: 360, y: 340 },
+      mouthTopCenter: { x: 400, y: 335 },
+      mouthTopRight: { x: 440, y: 340 },
+      mouthBottomLeft: { x: 360, y: 380 },
+      mouthBottomCenter: { x: 400, y: 385 },
+      mouthBottomRight: { x: 440, y: 380 }
     });
+  };
+
+  const autoDetectLandmarks = () => {
+    if (paths.length === 0) {
+      alert('Please draw something first!');
+      return;
+    }
+
+    // Analyze all paths to find bounding boxes and centroids
+    const pathData = paths.map(path => {
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      let points = [];
+
+      if (path.type === 'circle') {
+        minX = path.cx - path.r;
+        maxX = path.cx + path.r;
+        minY = path.cy - path.r;
+        maxY = path.cy + path.r;
+        points = [{ x: path.cx, y: path.cy }];
+      } else if (path.type === 'rect') {
+        minX = path.x;
+        maxX = path.x + path.width;
+        minY = path.y;
+        maxY = path.y + path.height;
+        points = [{ x: path.x + path.width / 2, y: path.y + path.height / 2 }];
+      } else if (path.type === 'path') {
+        const commands = path.d.match(/[ML]\s*([\d.]+)\s+([\d.]+)/g);
+        if (commands) {
+          commands.forEach(cmd => {
+            const match = cmd.match(/([\d.]+)\s+([\d.]+)/);
+            if (match) {
+              const x = parseFloat(match[1]);
+              const y = parseFloat(match[2]);
+              points.push({ x, y });
+              minX = Math.min(minX, x);
+              maxX = Math.max(maxX, x);
+              minY = Math.min(minY, y);
+              maxY = Math.max(maxY, y);
+            }
+          });
+        }
+      }
+
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const width = maxX - minX;
+      const height = maxY - minY;
+
+      return {
+        path,
+        centerX,
+        centerY,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        width,
+        height,
+        points
+      };
+    });
+
+    // Find overall bounding box
+    const allMinX = Math.min(...pathData.map(p => p.minX));
+    const allMaxX = Math.max(...pathData.map(p => p.maxX));
+    const allMinY = Math.min(...pathData.map(p => p.minY));
+    const allMaxY = Math.max(...pathData.map(p => p.maxY));
+    
+    const faceWidth = allMaxX - allMinX;
+    const faceHeight = allMaxY - allMinY;
+    const faceCenterX = (allMinX + allMaxX) / 2;
+    const faceCenterY = (allMinY + allMaxY) / 2;
+
+    // Divide face into regions
+    const topThird = allMinY + faceHeight * 0.33;
+    const middleThird = allMinY + faceHeight * 0.66;
+
+    // Find potential eyes (upper half, circular/oval shapes)
+    const potentialEyes = pathData.filter(p => 
+      p.centerY < topThird + faceHeight * 0.2 &&
+      p.centerY > allMinY &&
+      (p.path.type === 'circle' || (p.width > 10 && p.height > 10))
+    ).sort((a, b) => a.centerX - b.centerX);
+
+    // Find potential eyebrows (above eyes, horizontal shapes)
+    const potentialEyebrows = pathData.filter(p =>
+      p.centerY < topThird &&
+      p.centerY > allMinY - 50 &&
+      p.width > p.height
+    ).sort((a, b) => a.centerX - b.centerX);
+
+    // Find potential mouth (lower third, larger horizontal shape)
+    const potentialMouths = pathData.filter(p =>
+      p.centerY > middleThird &&
+      p.width > 30
+    ).sort((a, b) => b.width - a.width);
+
+    const newControlPoints = { ...controlPoints };
+
+    // Set eyes
+    if (potentialEyes.length >= 2) {
+      const leftEye = potentialEyes[0];
+      const rightEye = potentialEyes[potentialEyes.length >= 2 ? 1 : 0];
+      
+      // Left eye
+      newControlPoints.leftEyeCenter = { x: leftEye.centerX, y: leftEye.centerY };
+      newControlPoints.leftEyeTop = { x: leftEye.centerX, y: leftEye.minY };
+      newControlPoints.leftEyeBottom = { x: leftEye.centerX, y: leftEye.maxY };
+      newControlPoints.leftEyeInner = { x: leftEye.minX, y: leftEye.centerY };
+      newControlPoints.leftEyeOuter = { x: leftEye.maxX, y: leftEye.centerY };
+      
+      // Right eye
+      newControlPoints.rightEyeCenter = { x: rightEye.centerX, y: rightEye.centerY };
+      newControlPoints.rightEyeTop = { x: rightEye.centerX, y: rightEye.minY };
+      newControlPoints.rightEyeBottom = { x: rightEye.centerX, y: rightEye.maxY };
+      newControlPoints.rightEyeInner = { x: rightEye.minX, y: rightEye.centerY };
+      newControlPoints.rightEyeOuter = { x: rightEye.maxX, y: rightEye.centerY };
+    } else if (potentialEyes.length === 1) {
+      // Only one eye found - use it as reference
+      const eye = potentialEyes[0];
+      if (eye.centerX < faceCenterX) {
+        // It's the left eye
+        newControlPoints.leftEyeCenter = { x: eye.centerX, y: eye.centerY };
+        newControlPoints.leftEyeTop = { x: eye.centerX, y: eye.minY };
+        newControlPoints.leftEyeBottom = { x: eye.centerX, y: eye.maxY };
+        newControlPoints.leftEyeInner = { x: eye.minX, y: eye.centerY };
+        newControlPoints.leftEyeOuter = { x: eye.maxX, y: eye.centerY };
+      } else {
+        // It's the right eye
+        newControlPoints.rightEyeCenter = { x: eye.centerX, y: eye.centerY };
+        newControlPoints.rightEyeTop = { x: eye.centerX, y: eye.minY };
+        newControlPoints.rightEyeBottom = { x: eye.centerX, y: eye.maxY };
+        newControlPoints.rightEyeInner = { x: eye.minX, y: eye.centerY };
+        newControlPoints.rightEyeOuter = { x: eye.maxX, y: eye.centerY };
+      }
+    }
+
+    // Set eyebrows
+    if (potentialEyebrows.length >= 2) {
+      const leftBrow = potentialEyebrows[0];
+      const rightBrow = potentialEyebrows[1];
+      
+      // Left eyebrow
+      newControlPoints.leftEyebrowInner = { x: leftBrow.minX, y: leftBrow.centerY };
+      newControlPoints.leftEyebrowMiddle = { x: leftBrow.centerX, y: leftBrow.minY };
+      newControlPoints.leftEyebrowOuter = { x: leftBrow.maxX, y: leftBrow.centerY };
+      
+      // Right eyebrow
+      newControlPoints.rightEyebrowInner = { x: rightBrow.minX, y: rightBrow.centerY };
+      newControlPoints.rightEyebrowMiddle = { x: rightBrow.centerX, y: rightBrow.minY };
+      newControlPoints.rightEyebrowOuter = { x: rightBrow.maxX, y: rightBrow.centerY };
+    } else if (potentialEyebrows.length === 1) {
+      const brow = potentialEyebrows[0];
+      if (brow.centerX < faceCenterX) {
+        // Left eyebrow
+        newControlPoints.leftEyebrowInner = { x: brow.minX, y: brow.centerY };
+        newControlPoints.leftEyebrowMiddle = { x: brow.centerX, y: brow.minY };
+        newControlPoints.leftEyebrowOuter = { x: brow.maxX, y: brow.centerY };
+      } else {
+        // Right eyebrow
+        newControlPoints.rightEyebrowInner = { x: brow.minX, y: brow.centerY };
+        newControlPoints.rightEyebrowMiddle = { x: brow.centerX, y: brow.minY };
+        newControlPoints.rightEyebrowOuter = { x: brow.maxX, y: brow.centerY };
+      }
+    }
+
+    // Set mouth
+    if (potentialMouths.length > 0) {
+      const mouth = potentialMouths[0];
+      
+      newControlPoints.mouthLeftCorner = { x: mouth.minX, y: mouth.centerY };
+      newControlPoints.mouthRightCorner = { x: mouth.maxX, y: mouth.centerY };
+      
+      const mouthThirdWidth = mouth.width / 3;
+      newControlPoints.mouthTopLeft = { x: mouth.minX + mouthThirdWidth, y: mouth.minY };
+      newControlPoints.mouthTopCenter = { x: mouth.centerX, y: mouth.minY };
+      newControlPoints.mouthTopRight = { x: mouth.maxX - mouthThirdWidth, y: mouth.minY };
+      
+      newControlPoints.mouthBottomLeft = { x: mouth.minX + mouthThirdWidth, y: mouth.maxY };
+      newControlPoints.mouthBottomCenter = { x: mouth.centerX, y: mouth.maxY };
+      newControlPoints.mouthBottomRight = { x: mouth.maxX - mouthThirdWidth, y: mouth.maxY };
+    }
+
+    setControlPoints(newControlPoints);
+    setMode('rig'); // Switch to rig mode to show results
+    alert('Landmarks detected! Switch to Rig Points mode to adjust if needed.');
+  };
+
+  const getBrushStyle = (brushStyle) => {
+    switch(brushStyle) {
+      case 'dashed':
+        return '10,5';
+      case 'dotted':
+        return '2,4';
+      case 'sketch':
+        return '8,3,2,3';
+      default:
+        return 'none';
+    }
   };
 
   const getPathAnimationType = (path) => {
@@ -283,7 +1022,6 @@ export default function VectorDrawTTS() {
       pathCenterX = path.x + path.width / 2;
       pathCenterY = path.y + path.height / 2;
     } else if (path.type === 'path') {
-      // For pen paths, calculate center from all points
       const points = [];
       const commands = path.d.match(/[ML]\s*([\d.]+)\s+([\d.]+)/g);
       
@@ -301,7 +1039,6 @@ export default function VectorDrawTTS() {
       
       if (points.length === 0) return null;
       
-      // Calculate bounding box center
       const minX = Math.min(...points.map(p => p.x));
       const maxX = Math.max(...points.map(p => p.x));
       const minY = Math.min(...points.map(p => p.y));
@@ -319,38 +1056,64 @@ export default function VectorDrawTTS() {
       return Math.sqrt(dx * dx + dy * dy);
     };
 
-    // Check for pupils (inner circle, closer to eye center)
-    const distToLeftEye = distanceToPoint(cp.leftEye.x, cp.leftEye.y);
-    const distToRightEye = distanceToPoint(cp.rightEye.x, cp.rightEye.y);
+    // Check for pupils (very close to eye center)
+    const distToLeftEyeCenter = distanceToPoint(cp.leftEyeCenter.x, cp.leftEyeCenter.y);
+    const distToRightEyeCenter = distanceToPoint(cp.rightEyeCenter.x, cp.rightEyeCenter.y);
     
-    if (distToLeftEye < 15) {
-      return { type: 'leftPupil', eyeX: cp.leftEye.x, eyeY: cp.leftEye.y };
+    if (distToLeftEyeCenter < 15) {
+      return { type: 'leftPupil', eyeX: cp.leftEyeCenter.x, eyeY: cp.leftEyeCenter.y };
     }
-    if (distToRightEye < 15) {
-      return { type: 'rightPupil', eyeX: cp.rightEye.x, eyeY: cp.rightEye.y };
+    if (distToRightEyeCenter < 15) {
+      return { type: 'rightPupil', eyeX: cp.rightEyeCenter.x, eyeY: cp.rightEyeCenter.y };
     }
 
-    // Check for eye shapes (outer circle, near eye but not pupil)
-    if (distToLeftEye < 40) {
-      return { type: 'leftEye', eyeX: cp.leftEye.x, eyeY: cp.leftEye.y };
+    // Check for eye shapes (near any of the 5 eye points)
+    const leftEyePoints = [cp.leftEyeCenter, cp.leftEyeTop, cp.leftEyeBottom, cp.leftEyeInner, cp.leftEyeOuter];
+    const rightEyePoints = [cp.rightEyeCenter, cp.rightEyeTop, cp.rightEyeBottom, cp.rightEyeInner, cp.rightEyeOuter];
+    
+    for (const point of leftEyePoints) {
+      if (distanceToPoint(point.x, point.y) < 40) {
+        return { type: 'leftEye', eyeX: cp.leftEyeCenter.x, eyeY: cp.leftEyeCenter.y };
+      }
     }
-    if (distToRightEye < 40) {
-      return { type: 'rightEye', eyeX: cp.rightEye.x, eyeY: cp.rightEye.y };
+    
+    for (const point of rightEyePoints) {
+      if (distanceToPoint(point.x, point.y) < 40) {
+        return { type: 'rightEye', eyeX: cp.rightEyeCenter.x, eyeY: cp.rightEyeCenter.y };
+      }
     }
 
-    const mouthCenterX = (cp.mouthLeft.x + cp.mouthRight.x) / 2;
-    const mouthCenterY = (cp.mouthTop.y + cp.mouthBottom.y) / 2;
-    const distToMouth = distanceToPoint(mouthCenterX, mouthCenterY);
+    // Check for mouth (near any of the 8 mouth points)
+    const mouthPoints = [
+      cp.mouthLeftCorner, cp.mouthRightCorner,
+      cp.mouthTopLeft, cp.mouthTopCenter, cp.mouthTopRight,
+      cp.mouthBottomLeft, cp.mouthBottomCenter, cp.mouthBottomRight
+    ];
     
-    if (distToMouth < 120) {
-      return { type: 'mouth', centerX: pathCenterX, centerY: pathCenterY };
+    // Calculate mouth center from all points
+    const mouthCenterX = mouthPoints.reduce((sum, p) => sum + p.x, 0) / mouthPoints.length;
+    const mouthCenterY = mouthPoints.reduce((sum, p) => sum + p.y, 0) / mouthPoints.length;
+    
+    for (const point of mouthPoints) {
+      if (distanceToPoint(point.x, point.y) < 60) {
+        return { type: 'mouth', centerX: pathCenterX, centerY: pathCenterY };
+      }
     }
 
-    const distToLeftBrow = distanceToPoint(cp.leftEyebrow.x, cp.leftEyebrow.y);
-    const distToRightBrow = distanceToPoint(cp.rightEyebrow.x, cp.rightEyebrow.y);
+    // Check for eyebrows (near any of the 3 eyebrow points)
+    const leftBrowPoints = [cp.leftEyebrowInner, cp.leftEyebrowMiddle, cp.leftEyebrowOuter];
+    const rightBrowPoints = [cp.rightEyebrowInner, cp.rightEyebrowMiddle, cp.rightEyebrowOuter];
     
-    if (distToLeftBrow < 60 || distToRightBrow < 60) {
-      return { type: 'eyebrow' };
+    for (const point of leftBrowPoints) {
+      if (distanceToPoint(point.x, point.y) < 40) {
+        return { type: 'eyebrow' };
+      }
+    }
+    
+    for (const point of rightBrowPoints) {
+      if (distanceToPoint(point.x, point.y) < 40) {
+        return { type: 'eyebrow' };
+      }
     }
 
     return null;
@@ -497,6 +1260,7 @@ export default function VectorDrawTTS() {
     };
 
     if (animatedPath.type === 'path') {
+      const strokeDasharray = animatedPath.brushStyle ? getBrushStyle(animatedPath.brushStyle) : 'none';
       return (
         <path
           key={index}
@@ -504,6 +1268,7 @@ export default function VectorDrawTTS() {
           fill={animatedPath.fill}
           stroke={animatedPath.stroke}
           strokeWidth={animatedPath.strokeWidth}
+          strokeDasharray={strokeDasharray}
           strokeLinecap="round"
           strokeLinejoin="round"
           style={transitionStyle}
@@ -583,25 +1348,80 @@ export default function VectorDrawTTS() {
     
     return (
       <g>
+        {/* Connection lines */}
         <g stroke="#64748b" strokeWidth="2" strokeDasharray="5,5" opacity="0.5">
-          <line x1={cp.leftEyebrow.x} y1={cp.leftEyebrow.y} x2={cp.leftEye.x} y2={cp.leftEye.y} />
-          <line x1={cp.rightEyebrow.x} y1={cp.rightEyebrow.y} x2={cp.rightEye.x} y2={cp.rightEye.y} />
-          <line x1={cp.mouthLeft.x} y1={cp.mouthLeft.y} x2={cp.mouthTop.x} y2={cp.mouthTop.y} />
-          <line x1={cp.mouthTop.x} y1={cp.mouthTop.y} x2={cp.mouthRight.x} y2={cp.mouthRight.y} />
-          <line x1={cp.mouthRight.x} y1={cp.mouthRight.y} x2={cp.mouthBottom.x} y2={cp.mouthBottom.y} />
-          <line x1={cp.mouthBottom.x} y1={cp.mouthBottom.y} x2={cp.mouthLeft.x} y2={cp.mouthLeft.y} />
-          <line x1={(cp.leftEye.x + cp.rightEye.x) / 2} y1={cp.leftEye.y} 
-                x2={(cp.mouthLeft.x + cp.mouthRight.x) / 2} y2={cp.mouthTop.y} />
+          {/* Left eye shape */}
+          <line x1={cp.leftEyeCenter.x} y1={cp.leftEyeCenter.y} x2={cp.leftEyeTop.x} y2={cp.leftEyeTop.y} />
+          <line x1={cp.leftEyeCenter.x} y1={cp.leftEyeCenter.y} x2={cp.leftEyeBottom.x} y2={cp.leftEyeBottom.y} />
+          <line x1={cp.leftEyeCenter.x} y1={cp.leftEyeCenter.y} x2={cp.leftEyeInner.x} y2={cp.leftEyeInner.y} />
+          <line x1={cp.leftEyeCenter.x} y1={cp.leftEyeCenter.y} x2={cp.leftEyeOuter.x} y2={cp.leftEyeOuter.y} />
+          
+          {/* Right eye shape */}
+          <line x1={cp.rightEyeCenter.x} y1={cp.rightEyeCenter.y} x2={cp.rightEyeTop.x} y2={cp.rightEyeTop.y} />
+          <line x1={cp.rightEyeCenter.x} y1={cp.rightEyeCenter.y} x2={cp.rightEyeBottom.x} y2={cp.rightEyeBottom.y} />
+          <line x1={cp.rightEyeCenter.x} y1={cp.rightEyeCenter.y} x2={cp.rightEyeInner.x} y2={cp.rightEyeInner.y} />
+          <line x1={cp.rightEyeCenter.x} y1={cp.rightEyeCenter.y} x2={cp.rightEyeOuter.x} y2={cp.rightEyeOuter.y} />
+          
+          {/* Left eyebrow curve */}
+          <line x1={cp.leftEyebrowInner.x} y1={cp.leftEyebrowInner.y} x2={cp.leftEyebrowMiddle.x} y2={cp.leftEyebrowMiddle.y} />
+          <line x1={cp.leftEyebrowMiddle.x} y1={cp.leftEyebrowMiddle.y} x2={cp.leftEyebrowOuter.x} y2={cp.leftEyebrowOuter.y} />
+          
+          {/* Right eyebrow curve */}
+          <line x1={cp.rightEyebrowInner.x} y1={cp.rightEyebrowInner.y} x2={cp.rightEyebrowMiddle.x} y2={cp.rightEyebrowMiddle.y} />
+          <line x1={cp.rightEyebrowMiddle.x} y1={cp.rightEyebrowMiddle.y} x2={cp.rightEyebrowOuter.x} y2={cp.rightEyebrowOuter.y} />
+          
+          {/* Eyebrow to eye connections */}
+          <line x1={cp.leftEyebrowMiddle.x} y1={cp.leftEyebrowMiddle.y} x2={cp.leftEyeCenter.x} y2={cp.leftEyeCenter.y} />
+          <line x1={cp.rightEyebrowMiddle.x} y1={cp.rightEyebrowMiddle.y} x2={cp.rightEyeCenter.x} y2={cp.rightEyeCenter.y} />
+          
+          {/* Mouth outline */}
+          <line x1={cp.mouthLeftCorner.x} y1={cp.mouthLeftCorner.y} x2={cp.mouthTopLeft.x} y2={cp.mouthTopLeft.y} />
+          <line x1={cp.mouthTopLeft.x} y1={cp.mouthTopLeft.y} x2={cp.mouthTopCenter.x} y2={cp.mouthTopCenter.y} />
+          <line x1={cp.mouthTopCenter.x} y1={cp.mouthTopCenter.y} x2={cp.mouthTopRight.x} y2={cp.mouthTopRight.y} />
+          <line x1={cp.mouthTopRight.x} y1={cp.mouthTopRight.y} x2={cp.mouthRightCorner.x} y2={cp.mouthRightCorner.y} />
+          <line x1={cp.mouthRightCorner.x} y1={cp.mouthRightCorner.y} x2={cp.mouthBottomRight.x} y2={cp.mouthBottomRight.y} />
+          <line x1={cp.mouthBottomRight.x} y1={cp.mouthBottomRight.y} x2={cp.mouthBottomCenter.x} y2={cp.mouthBottomCenter.y} />
+          <line x1={cp.mouthBottomCenter.x} y1={cp.mouthBottomCenter.y} x2={cp.mouthBottomLeft.x} y2={cp.mouthBottomLeft.y} />
+          <line x1={cp.mouthBottomLeft.x} y1={cp.mouthBottomLeft.y} x2={cp.mouthLeftCorner.x} y2={cp.mouthLeftCorner.y} />
+          
+          {/* Face midline */}
+          <line x1={(cp.leftEyeCenter.x + cp.rightEyeCenter.x) / 2} y1={cp.leftEyeCenter.y} 
+                x2={(cp.mouthTopCenter.x + cp.mouthBottomCenter.x) / 2} y2={(cp.mouthTopCenter.y + cp.mouthBottomCenter.y) / 2} />
         </g>
 
-        {renderControlPoint('leftEye', cp.leftEye, '#3b82f6', 'L EYE')}
-        {renderControlPoint('rightEye', cp.rightEye, '#3b82f6', 'R EYE')}
-        {renderControlPoint('leftEyebrow', cp.leftEyebrow, '#8b5cf6', 'L BROW')}
-        {renderControlPoint('rightEyebrow', cp.rightEyebrow, '#8b5cf6', 'R BROW')}
-        {renderControlPoint('mouthLeft', cp.mouthLeft, '#ec4899', 'M LEFT')}
-        {renderControlPoint('mouthRight', cp.mouthRight, '#ec4899', 'M RIGHT')}
-        {renderControlPoint('mouthTop', cp.mouthTop, '#ec4899', 'M TOP')}
-        {renderControlPoint('mouthBottom', cp.mouthBottom, '#ec4899', 'M BOT')}
+        {/* Left Eye Control Points */}
+        {renderControlPoint('leftEyeCenter', cp.leftEyeCenter, '#3b82f6', 'LE C')}
+        {renderControlPoint('leftEyeTop', cp.leftEyeTop, '#60a5fa', 'LE T')}
+        {renderControlPoint('leftEyeBottom', cp.leftEyeBottom, '#60a5fa', 'LE B')}
+        {renderControlPoint('leftEyeInner', cp.leftEyeInner, '#60a5fa', 'LE I')}
+        {renderControlPoint('leftEyeOuter', cp.leftEyeOuter, '#60a5fa', 'LE O')}
+        
+        {/* Right Eye Control Points */}
+        {renderControlPoint('rightEyeCenter', cp.rightEyeCenter, '#3b82f6', 'RE C')}
+        {renderControlPoint('rightEyeTop', cp.rightEyeTop, '#60a5fa', 'RE T')}
+        {renderControlPoint('rightEyeBottom', cp.rightEyeBottom, '#60a5fa', 'RE B')}
+        {renderControlPoint('rightEyeInner', cp.rightEyeInner, '#60a5fa', 'RE I')}
+        {renderControlPoint('rightEyeOuter', cp.rightEyeOuter, '#60a5fa', 'RE O')}
+        
+        {/* Left Eyebrow Control Points */}
+        {renderControlPoint('leftEyebrowInner', cp.leftEyebrowInner, '#8b5cf6', 'LB I')}
+        {renderControlPoint('leftEyebrowMiddle', cp.leftEyebrowMiddle, '#8b5cf6', 'LB M')}
+        {renderControlPoint('leftEyebrowOuter', cp.leftEyebrowOuter, '#8b5cf6', 'LB O')}
+        
+        {/* Right Eyebrow Control Points */}
+        {renderControlPoint('rightEyebrowInner', cp.rightEyebrowInner, '#8b5cf6', 'RB I')}
+        {renderControlPoint('rightEyebrowMiddle', cp.rightEyebrowMiddle, '#8b5cf6', 'RB M')}
+        {renderControlPoint('rightEyebrowOuter', cp.rightEyebrowOuter, '#8b5cf6', 'RB O')}
+        
+        {/* Mouth Control Points */}
+        {renderControlPoint('mouthLeftCorner', cp.mouthLeftCorner, '#ec4899', 'M LC')}
+        {renderControlPoint('mouthRightCorner', cp.mouthRightCorner, '#ec4899', 'M RC')}
+        {renderControlPoint('mouthTopLeft', cp.mouthTopLeft, '#f472b6', 'M TL')}
+        {renderControlPoint('mouthTopCenter', cp.mouthTopCenter, '#ec4899', 'M TC')}
+        {renderControlPoint('mouthTopRight', cp.mouthTopRight, '#f472b6', 'M TR')}
+        {renderControlPoint('mouthBottomLeft', cp.mouthBottomLeft, '#f472b6', 'M BL')}
+        {renderControlPoint('mouthBottomCenter', cp.mouthBottomCenter, '#ec4899', 'M BC')}
+        {renderControlPoint('mouthBottomRight', cp.mouthBottomRight, '#f472b6', 'M BR')}
       </g>
     );
   };
@@ -666,58 +1486,154 @@ export default function VectorDrawTTS() {
             </div>
 
             {mode === 'draw' && (
-              <div className="flex items-center gap-4 mb-4 flex-wrap">
-                <div className="flex gap-2">
+              <div className="space-y-3 mb-4">
+                {/* Tool Selection */}
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setTool('pen')}
+                      className={`p-3 rounded-lg transition-all ${
+                        tool === 'pen' 
+                          ? 'bg-purple-600 text-white shadow-md' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Pen size={20} />
+                    </button>
+                    <button
+                      onClick={() => setTool('eraser')}
+                      className={`p-3 rounded-lg transition-all ${
+                        tool === 'eraser' 
+                          ? 'bg-red-600 text-white shadow-md' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                      title="Eraser Tool"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                    <button
+                      onClick={() => setTool('rect')}
+                      className={`p-3 rounded-lg transition-all ${
+                        tool === 'rect' 
+                          ? 'bg-purple-600 text-white shadow-md' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Square size={20} />
+                    </button>
+                    <button
+                      onClick={() => setTool('circle')}
+                      className={`p-3 rounded-lg transition-all ${
+                        tool === 'circle' 
+                          ? 'bg-purple-600 text-white shadow-md' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Circle size={20} />
+                    </button>
+                  </div>
+
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="w-12 h-12 rounded cursor-pointer border-2 border-gray-300"
+                  />
+
                   <button
-                    onClick={() => setTool('pen')}
+                    onClick={undo}
+                    disabled={pathHistory.length === 0}
                     className={`p-3 rounded-lg transition-all ${
-                      tool === 'pen' 
-                        ? 'bg-purple-600 text-white shadow-md' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      pathHistory.length === 0
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
                     }`}
+                    title="Undo"
                   >
-                    <Pen size={20} />
+                    <Undo size={20} />
                   </button>
+
                   <button
-                    onClick={() => setTool('rect')}
-                    className={`p-3 rounded-lg transition-all ${
-                      tool === 'rect' 
-                        ? 'bg-purple-600 text-white shadow-md' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                    onClick={clearCanvas}
+                    className="p-3 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-all"
+                    title="Clear All"
                   >
-                    <Square size={20} />
-                  </button>
-                  <button
-                    onClick={() => setTool('circle')}
-                    className={`p-3 rounded-lg transition-all ${
-                      tool === 'circle' 
-                        ? 'bg-purple-600 text-white shadow-md' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Circle size={20} />
+                    <Trash2 size={20} />
                   </button>
                 </div>
 
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  className="w-12 h-12 rounded cursor-pointer border-2 border-gray-300"
-                />
+                {/* Pen Size and Brush Style */}
+                <div className="flex items-center gap-6 flex-wrap bg-gray-50 p-3 rounded-lg">
+                  {/* Pen Size */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-gray-700">Size:</label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="20"
+                      value={penSize}
+                      onChange={(e) => setPenSize(parseInt(e.target.value))}
+                      className="w-32"
+                    />
+                    <span className="text-sm font-medium text-gray-600 w-8">{penSize}px</span>
+                  </div>
 
-                <button
-                  onClick={clearCanvas}
-                  className="p-3 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-all"
-                >
-                  <Trash2 size={20} />
-                </button>
+                  {/* Brush Style */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700">Brush:</label>
+                    <button
+                      onClick={() => setBrushStyle('solid')}
+                      className={`px-3 py-1.5 text-xs rounded transition-all ${
+                        brushStyle === 'solid'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      Solid
+                    </button>
+                    <button
+                      onClick={() => setBrushStyle('dashed')}
+                      className={`px-3 py-1.5 text-xs rounded transition-all ${
+                        brushStyle === 'dashed'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      Dashed
+                    </button>
+                    <button
+                      onClick={() => setBrushStyle('dotted')}
+                      className={`px-3 py-1.5 text-xs rounded transition-all ${
+                        brushStyle === 'dotted'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      Dotted
+                    </button>
+                    <button
+                      onClick={() => setBrushStyle('sketch')}
+                      className={`px-3 py-1.5 text-xs rounded transition-all ${
+                        brushStyle === 'sketch'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      Sketch
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
             {mode === 'rig' && (
               <div className="flex items-center gap-4 mb-4 flex-wrap">
+                <button
+                  onClick={autoDetectLandmarks}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium"
+                >
+                  Auto Detect Landmarks
+                </button>
                 <button
                   onClick={resetControlPoints}
                   className="px-4 py-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all"
@@ -740,7 +1656,7 @@ export default function VectorDrawTTS() {
                 height="600"
                 viewBox="0 0 800 600"
                 className={`w-full h-auto ${
-                  mode === 'draw' ? 'cursor-crosshair' : 
+                  mode === 'draw' ? (tool === 'eraser' ? 'cursor-not-allowed' : 'cursor-crosshair') : 
                   mode === 'rig' ? 'cursor-grab' : 
                   'cursor-default'
                 }`}
@@ -748,6 +1664,9 @@ export default function VectorDrawTTS() {
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                onTouchStart={handleMouseDown}
+                onTouchMove={handleMouseMove}
+                onTouchEnd={handleMouseUp}
                 style={{ touchAction: 'none' }}
               >
                 <rect width="800" height="600" fill="white" />
@@ -773,6 +1692,13 @@ export default function VectorDrawTTS() {
               >
                 <Save size={18} />
                 Save Rigging
+              </button>
+              <button
+                onClick={exportAnimationHTML}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all"
+              >
+                <Download size={18} />
+                Export Animation
               </button>
             </div>
           </div>
