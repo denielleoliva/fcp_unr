@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/fcp_unr/static/css/main.9f088a99.css",
+    "main.js": "/fcp_unr/static/js/main.e5546791.js",
+    "index.html": "/fcp_unr/index.html",
+    "main.9f088a99.css.map": "/fcp_unr/static/css/main.9f088a99.css.map",
+    "main.e5546791.js.map": "/fcp_unr/static/js/main.e5546791.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.9f088a99.css",
+    "static/js/main.e5546791.js"
+  ]
+}
