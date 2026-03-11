@@ -3,7 +3,7 @@
 
 // Calculate influence weight using Gaussian falloff
 export const gaussianInfluence = (distance, radius) => {
-  const sigma = radius / 2.5;
+  const sigma = radius / 1.5;
   return Math.exp(-(distance * distance) / (2 * sigma * sigma));
 };
 
@@ -56,7 +56,7 @@ export const getFacialRegions = (cp) => {
 };
 
 // Apply region-based deformation to a point
-export const applyRegionDeformation = (point, regionName, deformAmount, cp, blinkAmount, expressions, currentExpression, lipRounding = 0, jawDrop = 0) => {
+export const applyRegionDeformation = (point, regionName, deformAmount, cp, blinkAmount, expressions, currentExpression, lipRounding = 0, jawDrop = 0, visemeCurve = 0) => {
   const regions = getFacialRegions(cp);
   const region = regions[regionName];
   
@@ -77,20 +77,20 @@ export const applyRegionDeformation = (point, regionName, deformAmount, cp, blin
     case 'mouth':
       if (deformAmount > 0) {
         const verticalStretch = deformAmount * 80;
-        if (dy > 0) {
-          offsetY = verticalStretch * influence * (dy / region.radius);
+        if (dy >= 0) {
+          // At center (flat line) or below: push down, with 0.3 baseline so dy=0 still moves
+          offsetY = verticalStretch * influence * Math.max(0.3, dy / region.radius);
         } else {
-          offsetY = -verticalStretch * 0.3 * influence * (Math.abs(dy) / region.radius);
+          // Above center: upper lip moves up slightly
+          offsetY = -verticalStretch * 0.2 * influence * (Math.abs(dy) / region.radius);
         }
         offsetX = -dx * 0.2 * deformAmount * influence;
       }
-      
+
       // Jaw drop (additional vertical movement)
       if (jawDrop > 0) {
-        if (dy > 0) {
-          // Lower jaw drops more
-          offsetY += jawDrop * 40 * influence * (dy / region.radius);
-        }
+        // Use same baseline so flat-line mouth also responds to jaw drop
+        offsetY += jawDrop * 40 * influence * Math.max(0.3, dy / region.radius);
       }
       
       // Lip rounding (horizontal compression)
@@ -100,7 +100,8 @@ export const applyRegionDeformation = (point, regionName, deformAmount, cp, blin
         offsetX += -Math.sign(dx) * lipRounding * 20 * influence * (horizontalDist / region.radius);
       }
       
-      const curveAmount = (expressions[currentExpression]?.mouthCurve || 0);
+      // Mouth curve (smile/frown) - use viseme curve OR expression curve
+      const curveAmount = visemeCurve !== 0 ? visemeCurve : (expressions[currentExpression]?.mouthCurve || 0);
       if (Math.abs(curveAmount) > 0.01) {
         const horizontalDist = Math.abs(dx);
         if (horizontalDist > region.radius * 0.3) {
@@ -153,7 +154,7 @@ export const applyRegionDeformation = (point, regionName, deformAmount, cp, blin
 };
 
 // Deform an entire path using region-based animation
-export const deformPath = (path, controlPoints, mouthOpenAmount, blinkAmount, expressions, currentExpression, lipRounding = 0, jawDrop = 0) => {
+export const deformPath = (path, controlPoints, mouthOpenAmount, blinkAmount, expressions, currentExpression, lipRounding = 0, jawDrop = 0, visemeCurve = 0) => {
   const cp = controlPoints;
   let deformedPath = { ...path };
 
@@ -163,21 +164,13 @@ export const deformPath = (path, controlPoints, mouthOpenAmount, blinkAmount, ex
 
     const regions = getFacialRegions(cp);
     
-    for (const [regionName, region] of Object.entries(regions)) {
-      const dist = Math.sqrt(
-        Math.pow(center.x - region.center.x, 2) + 
-        Math.pow(center.y - region.center.y, 2)
-      );
-      
-      if (dist < region.radius * 1.5) {
-        let deformAmt = 0;
-        
-        if (regionName === 'mouth') deformAmt = mouthOpenAmount;
-        else if (regionName.includes('Eye')) deformAmt = blinkAmount;
-        else if (regionName.includes('Brow')) deformAmt = Math.abs(expressions[currentExpression]?.eyebrowRaise || 0);
-        
-        center = applyRegionDeformation(center, regionName, deformAmt, cp, blinkAmount, expressions, currentExpression, lipRounding, jawDrop);
-      }
+    for (const [regionName] of Object.entries(regions)) {
+      let deformAmt = 0;
+      if (regionName === 'mouth') deformAmt = mouthOpenAmount;
+      else if (regionName.includes('Eye')) deformAmt = blinkAmount;
+      else if (regionName.includes('Brow')) deformAmt = Math.abs(expressions[currentExpression]?.eyebrowRaise || 0);
+
+      center = applyRegionDeformation(center, regionName, deformAmt, cp, blinkAmount, expressions, currentExpression, lipRounding, jawDrop, visemeCurve);
     }
 
     deformedPath.cx = center.x;
@@ -196,52 +189,53 @@ export const deformPath = (path, controlPoints, mouthOpenAmount, blinkAmount, ex
     let center = { x: path.x + path.width / 2, y: path.y + path.height / 2 };
     const regions = getFacialRegions(cp);
 
-    for (const [regionName, region] of Object.entries(regions)) {
-      const dist = Math.sqrt(
-        Math.pow(center.x - region.center.x, 2) + 
-        Math.pow(center.y - region.center.y, 2)
-      );
-      
-      if (dist < region.radius * 1.5) {
-        let deformAmt = 0;
-        if (regionName === 'mouth') deformAmt = mouthOpenAmount;
-        else if (regionName.includes('Eye')) deformAmt = blinkAmount;
-        
-        center = applyRegionDeformation(center, regionName, deformAmt, cp, blinkAmount, expressions, currentExpression, lipRounding, jawDrop);
-      }
+    for (const [regionName] of Object.entries(regions)) {
+      let deformAmt = 0;
+      if (regionName === 'mouth') deformAmt = mouthOpenAmount;
+      else if (regionName.includes('Eye')) deformAmt = blinkAmount;
+
+      center = applyRegionDeformation(center, regionName, deformAmt, cp, blinkAmount, expressions, currentExpression, lipRounding, jawDrop, visemeCurve);
     }
 
     deformedPath.x = center.x - path.width / 2;
     deformedPath.y = center.y - path.height / 2;
 
   } else if (path.type === 'path') {
-    const commands = path.d.match(/[ML]\s*([\d.]+)\s+([\d.]+)/g);
+    // Match all path commands including curves (C, Q, A, etc.)
+    const commands = path.d.match(/[MLCQAZ][^MLCQAZ]*/gi);
     if (!commands) return deformedPath;
 
     const newCommands = commands.map(cmd => {
-      const match = cmd.match(/([ML])\s*([\d.]+)\s+([\d.]+)/);
-      if (!match) return cmd;
-
-      const [, letter, x, y] = match;
-      let point = { x: parseFloat(x), y: parseFloat(y) };
-
+      const cmdType = cmd[0].toUpperCase();
+      
+      // Extract all number pairs from the command
+      const coords = cmd.slice(1).match(/([-+]?[\d.]+)/g);
+      if (!coords || coords.length === 0) return cmd;
+      
       const regions = getFacialRegions(cp);
-      for (const [regionName, region] of Object.entries(regions)) {
-        const dist = Math.sqrt(
-          Math.pow(point.x - region.center.x, 2) + 
-          Math.pow(point.y - region.center.y, 2)
-        );
-
-        if (dist < region.radius * 1.5) {
+      const deformedCoords = [];
+      
+      // Process coordinate pairs
+      for (let i = 0; i < coords.length; i += 2) {
+        if (i + 1 >= coords.length) {
+          deformedCoords.push(coords[i]);
+          break;
+        }
+        
+        let point = { x: parseFloat(coords[i]), y: parseFloat(coords[i + 1]) };
+        
+        for (const [regionName] of Object.entries(regions)) {
           let deformAmt = 0;
           if (regionName === 'mouth') deformAmt = mouthOpenAmount;
           else if (regionName.includes('Eye')) deformAmt = blinkAmount;
-          
-          point = applyRegionDeformation(point, regionName, deformAmt, cp, blinkAmount, expressions, currentExpression, lipRounding, jawDrop);
-        }
-      }
 
-      return `${letter} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+          point = applyRegionDeformation(point, regionName, deformAmt, cp, blinkAmount, expressions, currentExpression, lipRounding, jawDrop, visemeCurve);
+        }
+        
+        deformedCoords.push(point.x.toFixed(2), point.y.toFixed(2));
+      }
+      
+      return cmdType + ' ' + deformedCoords.join(' ');
     });
 
     deformedPath.d = newCommands.join(' ');

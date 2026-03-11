@@ -5,7 +5,9 @@ import store from './utils/storage';
 import { deformPath } from './utils/regionAnimation';
 import { trainKNNClassifier, knnPredict, extractFeatures, getFaceBounds, labelShape } from './utils/knnClassifier';
 import { useExpression } from './hooks/useExpression';
+import { useVisemeAnimation } from './hooks/useVisemeAnimation';
 import ExpressionButtons from './components/ExpressionButtons';
+import VisemeDisplay from './components/VisemeDisplay';
 
 export default function VectorDrawTTS() {
   // Drawing state
@@ -21,20 +23,34 @@ export default function VectorDrawTTS() {
   const [imageOpacity, setImageOpacity] = useState(0.5);
   const [isDrawing, setIsDrawing] = useState(false);
   
-  // Animation state (from hook)
+  // Animation state (from expression hook)
   const {
-    mouthOpenAmount,
+    mouthOpenAmount: expressionMouth,
     blinkAmount,
     pupilOffsetX,
     pupilOffsetY,
     currentExpression,
     isTransitioning,
-    setMouthOpenAmount,
+    setMouthOpenAmount: setExpressionMouth,
     setBlinkAmount,
     setPupilOffsetX,
     setPupilOffsetY,
     animateToExpression,
   } = useExpression();
+  
+  // Viseme animation state (from viseme hook)
+  const {
+    isAnimating: isVisemeAnimating,
+    currentViseme,
+    mouthOpenAmount: visemeMouth,
+    mouthCurve: visemeCurve,
+    lipRounding,
+    jawDrop,
+    animateText,
+  } = useVisemeAnimation();
+  
+  // Combine expression and viseme mouth amounts (use whichever is larger)
+  const mouthOpenAmount = Math.max(expressionMouth, visemeMouth);
   
   // TTS state
   const [text, setText] = useState('');
@@ -60,6 +76,21 @@ export default function VectorDrawTTS() {
     };
     loadStatus();
   }, []);
+
+  // Idle blink in animate mode
+  useEffect(() => {
+    if (mode !== 'animate') return;
+
+    let timeoutId;
+    const blink = () => {
+      setBlinkAmount(1);
+      setTimeout(() => setBlinkAmount(0), 150);
+      timeoutId = setTimeout(blink, 2000 + Math.random() * 4000);
+    };
+
+    timeoutId = setTimeout(blink, 1000 + Math.random() * 2000);
+    return () => clearTimeout(timeoutId);
+  }, [mode, setBlinkAmount]);
 
   // Get brush style
   const getBrushStyle = (style) => BRUSH_STYLES[style] || 'none';
@@ -222,11 +253,150 @@ export default function VectorDrawTTS() {
 
   // Auto-detect landmarks
   const autoDetectLandmarks = async () => {
-    if (!uploadedImage) {
-      alert('Please upload an image first!');
+    // If there's an uploaded image, use image-based detection
+    if (uploadedImage) {
+      return autoDetectFromImage();
+    }
+    
+    // Otherwise, detect from drawn paths
+    if (paths.length === 0) {
+      alert('Please draw a face first, or upload an image!');
       return;
     }
 
+    // Use k-NN classifier if trained
+    if (modelTrained) {
+      return autoDetectLandmarksWithLearning();
+    }
+
+    // Basic heuristic detection from drawn shapes
+    const circles = paths.filter(p => p.type === 'circle');
+    
+    if (circles.length < 2) {
+      alert('Please draw at least 2 circles for eyes! Or train the classifier first.');
+      return;
+    }
+
+    // Sort circles by Y position (top to bottom)
+    const sortedByY = [...circles].sort((a, b) => a.cy - b.cy);
+    
+    // Top two circles are likely eyes
+    const topTwo = sortedByY.slice(0, 2).sort((a, b) => a.cx - b.cx);
+    const leftEye = topTwo[0];
+    const rightEye = topTwo[1];
+    
+    // Find mouth (look for shapes in bottom half)
+    const centerY = 300;
+    const bottomShapes = paths.filter(p => {
+      if (p.type === 'circle') return p.cy > centerY;
+      if (p.type === 'rect') return p.y + p.height / 2 > centerY;
+      if (p.type === 'path') {
+        // Extract coordinates from path to check if it's in bottom half
+        const coords = p.d.match(/([-+]?[\d.]+)/g);
+        if (coords && coords.length >= 2) {
+          const avgY = coords.filter((_, i) => i % 2 === 1)
+            .map(y => parseFloat(y))
+            .reduce((sum, y) => sum + y, 0) / Math.floor(coords.length / 2);
+          return avgY > centerY;
+        }
+      }
+      return false;
+    });
+
+    let mouthCenter = { x: 400, y: 450 };
+    let mouthBounds = { minX: 360, maxX: 440, minY: 420, maxY: 480 };
+    
+    if (bottomShapes.length > 0) {
+      // Calculate bounding box of mouth shapes
+      let allMinX = Infinity, allMaxX = -Infinity;
+      let allMinY = Infinity, allMaxY = -Infinity;
+      
+      bottomShapes.forEach(shape => {
+        if (shape.type === 'circle') {
+          allMinX = Math.min(allMinX, shape.cx - shape.r);
+          allMaxX = Math.max(allMaxX, shape.cx + shape.r);
+          allMinY = Math.min(allMinY, shape.cy - shape.r);
+          allMaxY = Math.max(allMaxY, shape.cy + shape.r);
+        } else if (shape.type === 'rect') {
+          allMinX = Math.min(allMinX, shape.x);
+          allMaxX = Math.max(allMaxX, shape.x + shape.width);
+          allMinY = Math.min(allMinY, shape.y);
+          allMaxY = Math.max(allMaxY, shape.y + shape.height);
+        } else if (shape.type === 'path') {
+          // Extract all coordinates from path
+          const coords = shape.d.match(/([-+]?[\d.]+)/g);
+          if (coords) {
+            for (let i = 0; i < coords.length; i += 2) {
+              if (i + 1 < coords.length) {
+                const x = parseFloat(coords[i]);
+                const y = parseFloat(coords[i + 1]);
+                allMinX = Math.min(allMinX, x);
+                allMaxX = Math.max(allMaxX, x);
+                allMinY = Math.min(allMinY, y);
+                allMaxY = Math.max(allMaxY, y);
+              }
+            }
+          }
+        }
+      });
+      
+      if (allMinX !== Infinity) {
+        mouthCenter = {
+          x: (allMinX + allMaxX) / 2,
+          y: (allMinY + allMaxY) / 2
+        };
+        mouthBounds = { minX: allMinX, maxX: allMaxX, minY: allMinY, maxY: allMaxY };
+      }
+    }
+
+    // Calculate other landmarks based on eye positions
+    const eyeDistance = rightEye.cx - leftEye.cx;
+    const eyeCenterY = (leftEye.cy + rightEye.cy) / 2;
+    const faceWidth = eyeDistance * 2.5;
+    const faceCenterX = (leftEye.cx + rightEye.cx) / 2;
+
+    setControlPoints({
+      // Eyes
+      leftEyeCenter: { x: leftEye.cx, y: leftEye.cy },
+      leftEyeTop: { x: leftEye.cx, y: leftEye.cy - leftEye.r },
+      leftEyeBottom: { x: leftEye.cx, y: leftEye.cy + leftEye.r },
+      leftEyeOuter: { x: leftEye.cx - leftEye.r, y: leftEye.cy },
+      leftEyeInner: { x: leftEye.cx + leftEye.r, y: leftEye.cy },
+      
+      rightEyeCenter: { x: rightEye.cx, y: rightEye.cy },
+      rightEyeTop: { x: rightEye.cx, y: rightEye.cy - rightEye.r },
+      rightEyeBottom: { x: rightEye.cx, y: rightEye.cy + rightEye.r },
+      rightEyeInner: { x: rightEye.cx - rightEye.r, y: rightEye.cy },
+      rightEyeOuter: { x: rightEye.cx + rightEye.r, y: rightEye.cy },
+      
+      // Eyebrows (above eyes)
+      leftBrowInner: { x: leftEye.cx - leftEye.r * 0.5, y: leftEye.cy - leftEye.r * 2 },
+      leftBrowMiddle: { x: leftEye.cx, y: leftEye.cy - leftEye.r * 2.2 },
+      leftBrowOuter: { x: leftEye.cx + leftEye.r * 1.2, y: leftEye.cy - leftEye.r * 2 },
+      
+      rightBrowInner: { x: rightEye.cx - rightEye.r * 1.2, y: rightEye.cy - rightEye.r * 2 },
+      rightBrowMiddle: { x: rightEye.cx, y: rightEye.cy - rightEye.r * 2.2 },
+      rightBrowOuter: { x: rightEye.cx + rightEye.r * 0.5, y: rightEye.cy - rightEye.r * 2 },
+      
+      // Mouth (use actual bounding box)
+      mouthTopCenter: { x: mouthCenter.x, y: mouthBounds.minY },
+      mouthBottomCenter: { x: mouthCenter.x, y: mouthBounds.maxY },
+      mouthLeftCorner: { x: mouthBounds.minX, y: mouthCenter.y },
+      mouthRightCorner: { x: mouthBounds.maxX, y: mouthCenter.y },
+      mouthTopLeft: { x: mouthBounds.minX + (mouthBounds.maxX - mouthBounds.minX) * 0.25, y: mouthBounds.minY + (mouthBounds.maxY - mouthBounds.minY) * 0.33 },
+      mouthTopRight: { x: mouthBounds.minX + (mouthBounds.maxX - mouthBounds.minX) * 0.75, y: mouthBounds.minY + (mouthBounds.maxY - mouthBounds.minY) * 0.33 },
+      mouthBottomLeft: { x: mouthBounds.minX + (mouthBounds.maxX - mouthBounds.minX) * 0.25, y: mouthBounds.minY + (mouthBounds.maxY - mouthBounds.minY) * 0.67 },
+      mouthBottomRight: { x: mouthBounds.minX + (mouthBounds.maxX - mouthBounds.minX) * 0.75, y: mouthBounds.minY + (mouthBounds.maxY - mouthBounds.minY) * 0.67 },
+      
+      // Nose (between eyes and mouth)
+      noseTip: { x: faceCenterX, y: eyeCenterY + (mouthCenter.y - eyeCenterY) * 0.6 },
+      noseBottom: { x: faceCenterX, y: eyeCenterY + (mouthCenter.y - eyeCenterY) * 0.75 },
+    });
+
+    alert('Landmarks detected from drawn shapes! Adjust manually for better accuracy.');
+  };
+
+  const autoDetectFromImage = async () => {
     const img = new Image();
     img.src = uploadedImage;
     await new Promise(resolve => { img.onload = resolve; });
@@ -274,7 +444,7 @@ export default function VectorDrawTTS() {
         mouthBottomCenter: { x: mouth.x * scaleX, y: (mouth.y + 10) * scaleY },
       });
 
-      alert('Basic landmarks detected! Adjust manually for better results.');
+      alert('Basic landmarks detected from image! Adjust manually for better results.');
     } else {
       alert('Could not detect enough dark regions. Try adjusting the image or place landmarks manually.');
     }
@@ -326,7 +496,14 @@ export default function VectorDrawTTS() {
       return;
     }
 
+    if (paths.length === 0) {
+      alert('Please draw a face first!');
+      return;
+    }
+
     const model = JSON.parse(modelRaw);
+
+    // Use the same face bounds method as training so normalized features match
     const faceBounds = getFaceBounds(controlPoints);
 
     const detected = { leftEye: [], rightEye: [], leftBrow: [], rightBrow: [], mouth: [] };
@@ -353,35 +530,129 @@ export default function VectorDrawTTS() {
           maxX = Math.max(maxX, shape.cx + shape.r);
           minY = Math.min(minY, shape.cy - shape.r);
           maxY = Math.max(maxY, shape.cy + shape.r);
+        } else if (shape.type === 'rect') {
+          minX = Math.min(minX, shape.x);
+          maxX = Math.max(maxX, shape.x + shape.width);
+          minY = Math.min(minY, shape.y);
+          maxY = Math.max(maxY, shape.y + shape.height);
+        } else if (shape.type === 'path') {
+          const coords = shape.d.match(/([-+]?[\d.]+)/g);
+          if (coords) {
+            for (let i = 0; i + 1 < coords.length; i += 2) {
+              const px = parseFloat(coords[i]);
+              const py = parseFloat(coords[i + 1]);
+              minX = Math.min(minX, px);
+              maxX = Math.max(maxX, px);
+              minY = Math.min(minY, py);
+              maxY = Math.max(maxY, py);
+            }
+          }
         }
       }
 
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
+      const width = maxX - minX;
+      const height = maxY - minY;
 
       updates.mouthLeftCorner = { x: minX, y: centerY };
       updates.mouthRightCorner = { x: maxX, y: centerY };
       updates.mouthTopCenter = { x: centerX, y: minY };
       updates.mouthBottomCenter = { x: centerX, y: maxY };
+      updates.mouthTopLeft = { x: centerX - width * 0.25, y: centerY - height * 0.3 };
+      updates.mouthTopRight = { x: centerX + width * 0.25, y: centerY - height * 0.3 };
+      updates.mouthBottomLeft = { x: centerX - width * 0.25, y: centerY + height * 0.3 };
+      updates.mouthBottomRight = { x: centerX + width * 0.25, y: centerY + height * 0.3 };
     }
 
     ['leftEye', 'rightEye'].forEach(eyeKey => {
       if (detected[eyeKey].length > 0) {
-        const sorted = detected[eyeKey].sort((a, b) => a.cx - b.cx);
-        const eye = sorted[0];
+        const eye = detected[eyeKey][0];
         const prefix = eyeKey;
         
         if (eye.type === 'circle') {
           updates[`${prefix}Center`] = { x: eye.cx, y: eye.cy };
+          updates[`${prefix}Top`] = { x: eye.cx, y: eye.cy - eye.r };
+          updates[`${prefix}Bottom`] = { x: eye.cx, y: eye.cy + eye.r };
+          if (eyeKey === 'leftEye') {
+            updates[`${prefix}Outer`] = { x: eye.cx - eye.r, y: eye.cy };
+            updates[`${prefix}Inner`] = { x: eye.cx + eye.r, y: eye.cy };
+          } else {
+            updates[`${prefix}Inner`] = { x: eye.cx - eye.r, y: eye.cy };
+            updates[`${prefix}Outer`] = { x: eye.cx + eye.r, y: eye.cy };
+          }
+        } else if (eye.type === 'rect') {
+          const cx = eye.x + eye.width / 2;
+          const cy = eye.y + eye.height / 2;
+          updates[`${prefix}Center`] = { x: cx, y: cy };
+          updates[`${prefix}Top`] = { x: cx, y: eye.y };
+          updates[`${prefix}Bottom`] = { x: cx, y: eye.y + eye.height };
+          if (eyeKey === 'leftEye') {
+            updates[`${prefix}Outer`] = { x: eye.x, y: cy };
+            updates[`${prefix}Inner`] = { x: eye.x + eye.width, y: cy };
+          } else {
+            updates[`${prefix}Inner`] = { x: eye.x, y: cy };
+            updates[`${prefix}Outer`] = { x: eye.x + eye.width, y: cy };
+          }
+        } else if (eye.type === 'path') {
+          const coords = eye.d.match(/([-+]?[\d.]+)/g);
+          if (coords && coords.length >= 2) {
+            const xs = [], ys = [];
+            for (let i = 0; i + 1 < coords.length; i += 2) {
+              xs.push(parseFloat(coords[i]));
+              ys.push(parseFloat(coords[i + 1]));
+            }
+            const minPX = Math.min(...xs), maxPX = Math.max(...xs);
+            const minPY = Math.min(...ys), maxPY = Math.max(...ys);
+            const cx = (minPX + maxPX) / 2;
+            const cy = (minPY + maxPY) / 2;
+            updates[`${prefix}Center`] = { x: cx, y: cy };
+            updates[`${prefix}Top`] = { x: cx, y: minPY };
+            updates[`${prefix}Bottom`] = { x: cx, y: maxPY };
+            if (eyeKey === 'leftEye') {
+              updates[`${prefix}Outer`] = { x: minPX, y: cy };
+              updates[`${prefix}Inner`] = { x: maxPX, y: cy };
+            } else {
+              updates[`${prefix}Inner`] = { x: minPX, y: cy };
+              updates[`${prefix}Outer`] = { x: maxPX, y: cy };
+            }
+          }
         }
       }
     });
 
+    // Add eyebrows if eyes detected
+    if (updates.leftEyeCenter) {
+      const leftEye = updates.leftEyeCenter;
+      const eyeRadius = detected.leftEye[0]?.r || 20;
+      updates.leftBrowInner = { x: leftEye.x - eyeRadius * 0.5, y: leftEye.y - eyeRadius * 2 };
+      updates.leftBrowMiddle = { x: leftEye.x, y: leftEye.y - eyeRadius * 2.2 };
+      updates.leftBrowOuter = { x: leftEye.x + eyeRadius * 1.2, y: leftEye.y - eyeRadius * 2 };
+    }
+    
+    if (updates.rightEyeCenter) {
+      const rightEye = updates.rightEyeCenter;
+      const eyeRadius = detected.rightEye[0]?.r || 20;
+      updates.rightBrowInner = { x: rightEye.x - eyeRadius * 1.2, y: rightEye.y - eyeRadius * 2 };
+      updates.rightBrowMiddle = { x: rightEye.x, y: rightEye.y - eyeRadius * 2.2 };
+      updates.rightBrowOuter = { x: rightEye.x + eyeRadius * 0.5, y: rightEye.y - eyeRadius * 2 };
+    }
+
+    // Add nose if we have eyes and mouth
+    if (updates.leftEyeCenter && updates.rightEyeCenter && updates.mouthTopCenter) {
+      const faceCenterX = (updates.leftEyeCenter.x + updates.rightEyeCenter.x) / 2;
+      const eyeCenterY = (updates.leftEyeCenter.y + updates.rightEyeCenter.y) / 2;
+      const mouthY = updates.mouthTopCenter.y;
+      
+      updates.noseTip = { x: faceCenterX, y: eyeCenterY + (mouthY - eyeCenterY) * 0.6 };
+      updates.noseBottom = { x: faceCenterX, y: eyeCenterY + (mouthY - eyeCenterY) * 0.75 };
+    }
+
     if (Object.keys(updates).length > 0) {
       setControlPoints({ ...controlPoints, ...updates });
-      alert(`Detected: ${Object.keys(updates).join(', ')}`);
+      alert(`Detected ${Object.keys(updates).length} landmarks: ${detected.leftEye.length} left eye, ${detected.rightEye.length} right eye, ${detected.mouth.length} mouth shapes`);
     } else {
-      alert('No facial features detected with classifier.');
+      alert('No facial features detected with classifier. Make sure you have trained examples that match your drawing style!');
     }
   };
 
@@ -614,11 +885,10 @@ export default function VectorDrawTTS() {
     let lastTime = Date.now();
     const animationInterval = setInterval(() => {
       const now = Date.now();
-      const delta = (now - lastTime) / 1000;
       lastTime = now;
 
       if (Math.random() < 0.3) {
-        setMouthOpenAmount(Math.random() * 0.8 + 0.2);
+        setExpressionMouth(Math.random() * 0.8 + 0.2);
       }
 
       if (Math.random() < 0.05) {
@@ -634,7 +904,7 @@ export default function VectorDrawTTS() {
 
     utterance.onend = () => {
       clearInterval(animationInterval);
-      setMouthOpenAmount(0);
+      setExpressionMouth(0);
       setBlinkAmount(0);
       setPupilOffsetX(0);
       setPupilOffsetY(0);
@@ -691,7 +961,17 @@ export default function VectorDrawTTS() {
     let renderedPath = path;
     
     if (mouthOpenAmount > 0 || blinkAmount > 0 || Math.abs(pupilOffsetX) > 0.01 || Math.abs(pupilOffsetY) > 0.01) {
-      renderedPath = deformPath(path, controlPoints, mouthOpenAmount, blinkAmount, EXPRESSIONS, currentExpression);
+      renderedPath = deformPath(
+        path, 
+        controlPoints, 
+        mouthOpenAmount, 
+        blinkAmount, 
+        EXPRESSIONS, 
+        currentExpression,
+        lipRounding,
+        jawDrop,
+        visemeCurve
+      );
     }
 
     const transitionStyle = {
@@ -1063,6 +1343,15 @@ export default function VectorDrawTTS() {
                   >
                     Auto-Detect Landmarks
                   </button>
+                  <div className="text-xs text-gray-600 -mt-2 px-1">
+                    {modelTrained 
+                      ? 'Uses trained classifier for detection' 
+                      : paths.length > 0 
+                        ? 'Detects from drawn shapes (draw 2+ circles for eyes)' 
+                        : uploadedImage 
+                          ? 'Detects from uploaded image' 
+                          : 'Draw a face or upload an image first'}
+                  </div>
 
                   <button
                     onClick={resetControlPoints}
@@ -1144,6 +1433,13 @@ export default function VectorDrawTTS() {
                   onExpressionChange={animateToExpression}
                 />
 
+                <VisemeDisplay
+                  currentViseme={currentViseme}
+                  mouthOpenAmount={visemeMouth}
+                  lipRounding={lipRounding}
+                  isAnimating={isVisemeAnimating}
+                />
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Speech Text
@@ -1156,27 +1452,51 @@ export default function VectorDrawTTS() {
                   />
                 </div>
 
-                <button
-                  onClick={animateWithTTS}
-                  disabled={isAnimating}
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
-                    isAnimating
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-purple-600 text-white hover:bg-purple-700 shadow-md hover:shadow-lg'
-                  }`}
-                >
-                  {isAnimating ? (
-                    <>
-                      <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin" />
-                      Speaking...
-                    </>
-                  ) : (
-                    <>
-                      <Play size={20} />
-                      Animate with Speech
-                    </>
-                  )}
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => animateText(text, true)}
+                    disabled={isVisemeAnimating}
+                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
+                      isVisemeAnimating
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg'
+                    }`}
+                  >
+                    {isVisemeAnimating ? (
+                      <>
+                        <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                        Visemes
+                      </>
+                    ) : (
+                      <>
+                        <Play size={20} />
+                        Viseme Speech
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={animateWithTTS}
+                    disabled={isAnimating}
+                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
+                      isAnimating
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-purple-600 text-white hover:bg-purple-700 shadow-md hover:shadow-lg'
+                    }`}
+                  >
+                    {isAnimating ? (
+                      <>
+                        <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                        Basic
+                      </>
+                    ) : (
+                      <>
+                        <Play size={20} />
+                        Basic TTS
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 <div className="mt-4 p-4 bg-purple-50 rounded-lg">
                   <h4 className="font-semibold text-gray-800 mb-2">Manual Controls:</h4>
@@ -1191,8 +1511,8 @@ export default function VectorDrawTTS() {
                         min="0"
                         max="1"
                         step="0.01"
-                        value={mouthOpenAmount}
-                        onChange={(e) => setMouthOpenAmount(parseFloat(e.target.value))}
+                        value={expressionMouth}
+                        onChange={(e) => setExpressionMouth(parseFloat(e.target.value))}
                         className="w-full"
                       />
                     </div>

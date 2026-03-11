@@ -25,13 +25,20 @@ export const extractFeatures = (shape, faceBounds) => {
     isCircle = 0;
     closure = 0.9;
   } else if (shape.type === 'path') {
-    const commands = shape.d.match(/[ML]\s*([\d.]+)\s+([\d.]+)/g);
-    if (!commands) return null;
+    // Extract all coordinates from all command types
+    const coords = shape.d.match(/([-+]?[\d.]+)/g);
+    if (!coords || coords.length < 2) return null;
     
-    const points = commands.map(cmd => {
-      const match = cmd.match(/[ML]\s*([\d.]+)\s+([\d.]+)/);
-      return match ? { x: parseFloat(match[1]), y: parseFloat(match[2]) } : null;
-    }).filter(Boolean);
+    // Parse coordinate pairs
+    const points = [];
+    for (let i = 0; i < coords.length; i += 2) {
+      if (i + 1 < coords.length) {
+        points.push({
+          x: parseFloat(coords[i]),
+          y: parseFloat(coords[i + 1])
+        });
+      }
+    }
     
     if (points.length === 0) return null;
     
