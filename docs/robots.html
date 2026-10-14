@@ -1,0 +1,256 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Running a drawn face on M and Baxter &mdash; Face Rigging Studio documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=cfa3ec00" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Troubleshooting" href="troubleshooting.html" />
+    <link rel="prev" title="Export formats" href="exports.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Face Rigging Studio
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="workflow.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pipeline.html">Pipeline overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extraction.html">Loading and vectorization</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="extraction.html#load-the-drawing">Load the drawing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="extraction.html#clean-the-image">Clean the image</a></li>
+<li class="toctree-l2"><a class="reference internal" href="extraction.html#vectorize-the-colored-regions">Vectorize the colored regions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="extraction.html#match-facial-features">Match facial features</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="rigging.html">Geometry and Vizij rigging</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="rigging.html#build-movable-geometry">Build movable geometry</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="rigging.html#drawing-preserving-motion">Drawing-preserving motion</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="rigging.html#package-and-run-the-vizij-rig">Package and run the Vizij rig</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="speech.html">Speech and blinking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exports.html">Export formats</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Running a drawn face on M and Baxter</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#m-robot-ros-2">M robot (ROS 2)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#speech-contract">Speech contract</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#baxter-head-display-ros-1">Baxter head display (ROS 1)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#set-up">Set up</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#speech-on-baxter">Speech on Baxter</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#validation-status">Validation status</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Code reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="development.html">Development and deployment</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="development.html#build-this-documentation">Build this documentation</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Face Rigging Studio</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Running a drawn face on M and Baxter</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="running-a-drawn-face-on-m-and-baxter">
+<h1>Running a drawn face on M and Baxter<a class="headerlink" href="#running-a-drawn-face-on-m-and-baxter" title="Link to this heading"></a></h1>
+<p>The same <code class="docutils literal notranslate"><span class="pre">drawing-face.vizij.glb</span></code> can drive either screen. M renders it directly in its existing Vizij browser app. Baxter receives rendered image frames from a companion computer through ROS 1.</p>
+<section id="m-robot-ros-2">
+<h2>M robot (ROS 2)<a class="headerlink" href="#m-robot-ros-2" title="Link to this heading"></a></h2>
+<p>The integration is in the separate <code class="docutils literal notranslate"><span class="pre">m-sarg</span></code> repository, under <code class="docutils literal notranslate"><span class="pre">src/m_sarg/web3d</span></code>. The drawing profile keeps the existing settings, pairing-code overlay, and visual-aid display. It uses the existing face-node WebSocket and speech topics; it does not change servo control.</p>
+<ol class="arabic">
+<li><p>Build and export a face from this studio with <strong>Natural mouth &amp; eye motion</strong> and <strong>Keep my drawn shapes</strong> enabled.</p></li>
+<li><p>Copy the GLB into the M checkout:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>cp<span class="w"> </span>/path/to/drawing-face.vizij.glb<span class="w"> </span>/path/to/m-sarg/src/m_sarg/web3d/public/assets/drawing-face.vizij.glb
+</pre></div>
+</div>
+</li>
+<li><p>Build the M web app with the drawing profile as its kiosk default:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/m-sarg/src/m_sarg/web3d
+npm<span class="w"> </span>ci
+<span class="nv">VITE_FACE_PROFILE</span><span class="o">=</span>drawing<span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>build
+</pre></div>
+</div>
+</li>
+<li><p>Copy or commit the M source, asset, and generated <code class="docutils literal notranslate"><span class="pre">dist</span></code> changes to the robot workspace, then rebuild its installed package:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/m-sarg
+colcon<span class="w"> </span>build<span class="w"> </span>--packages-select<span class="w"> </span>m_sarg
+<span class="nb">source</span><span class="w"> </span>install/setup.bash
+ros2<span class="w"> </span>run<span class="w"> </span>m_sarg<span class="w"> </span>face_node<span class="w"> </span>--ros-args<span class="w"> </span>-p<span class="w"> </span>kiosk:<span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+</li>
+</ol>
+<p>This command runs the display node only. When the robot already runs its face node as a service, restart that service instead of starting a second node on port 8765. Its existing speech stack must be running to provide voice audio and viseme messages.</p>
+<p>For development, <code class="docutils literal notranslate"><span class="pre">?face=drawing</span></code> selects the drawing profile on a normal build. <code class="docutils literal notranslate"><span class="pre">?face=default</span></code> selects the original face. To restore the original kiosk default, rebuild without <code class="docutils literal notranslate"><span class="pre">VITE_FACE_PROFILE=drawing</span></code>.</p>
+<section id="speech-contract">
+<h3>Speech contract<a class="headerlink" href="#speech-contract" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>ROS topic</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Payload</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">face/expression</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">std_msgs/String</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">neutral</span></code>, <code class="docutils literal notranslate"><span class="pre">happy</span></code>, <code class="docutils literal notranslate"><span class="pre">sad</span></code>, <code class="docutils literal notranslate"><span class="pre">surprised</span></code>, or <code class="docutils literal notranslate"><span class="pre">blink</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">face/visemes</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">std_msgs/String</span></code></p></td>
+<td><p>JSON array of <code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">&quot;viseme_id&quot;:</span> <span class="pre">2,</span> <span class="pre">&quot;audio_offset&quot;:</span> <span class="pre">1000000</span> <span class="pre">}</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">face/command</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">std_msgs/String</span></code></p></td>
+<td><p>JSON command described below</p></td>
+</tr>
+</tbody>
+</table>
+<p>Viseme IDs use the <a class="reference external" href="https://learn.microsoft.com/en-us/azure/ai-services/speech-service/how-to-speech-synthesis-viseme">Azure 0–21 vocabulary</a>; <code class="docutils literal notranslate"><span class="pre">audio_offset</span></code> is measured in <strong>100 ns units</strong>, so <code class="docutils literal notranslate"><span class="pre">1000000</span></code> means 100 ms. The adapter maps these sounds onto the drawing’s jaw and lip-rounding controls. Silence and ID 21 (P/B/M) close the mouth.</p>
+<p>A speech producer should send, in order:</p>
+<ol class="arabic simple">
+<li><p>The complete viseme timeline.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">{&quot;command&quot;:&quot;set_mode&quot;,&quot;mode&quot;:&quot;viseme&quot;}</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">{&quot;command&quot;:&quot;start_audio_sync&quot;}</span></code> as audio playback begins.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">{&quot;command&quot;:&quot;stop_audio_sync&quot;}</span></code> when playback ends or is interrupted.</p></li>
+</ol>
+<p>The adapter closes the mouth on disconnect, stop, or 500 ms after the final event if a stop message is missing. Timing is relative to receipt of the start message; transport and audio-device latency still require on-robot checks. Emotion support is limited to the drawing’s available brow and gaze controls; it does not create additional smile/frown shapes.</p>
+</section>
+</section>
+<section id="baxter-head-display-ros-1">
+<h2>Baxter head display (ROS 1)<a class="headerlink" href="#baxter-head-display-ros-1" title="Link to this heading"></a></h2>
+<p>Baxter’s <a class="reference external" href="https://github.com/RethinkRobotics/baxter_examples/blob/master/scripts/xdisplay_image.py">display example</a> accepts <code class="docutils literal notranslate"><span class="pre">sensor_msgs/Image</span></code> messages on <code class="docutils literal notranslate"><span class="pre">/robot/xdisplay</span></code>, at up to 1024 × 600 pixels.</p>
+<p>The bridge in <code class="docutils literal notranslate"><span class="pre">integrations/baxter/display_bridge.py</span></code> runs on a modern companion computer. It serves the built M web app locally, renders the drawing profile in Chromium, and publishes 1024 × 600 RGB frames through ROS 1 rosbridge. It also relays the same three face topics from ROS 1 to the browser, so the drawing adapter can use your speech timeline. It does not generate or play speech audio.</p>
+<section id="set-up">
+<h3>Set up<a class="headerlink" href="#set-up" title="Link to this heading"></a></h3>
+<p>On the ROS 1 workstation configured to communicate with Baxter, start the installed <code class="docutils literal notranslate"><span class="pre">rosbridge_server</span></code>:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>roslaunch<span class="w"> </span>rosbridge_server<span class="w"> </span>rosbridge_websocket.launch
+</pre></div>
+</div>
+<p>Use that workstation’s rosbridge address below. The workstation must already have the appropriate Baxter ROS master and networking configuration. If rosbridge is not installed, install the package for that workstation’s ROS distribution first.</p>
+<p>On the rendering computer, use Python 3.10 or newer:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/fcp_unr
+python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv-baxter
+.venv-baxter/bin/python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>integrations/baxter/requirements.txt
+.venv-baxter/bin/python<span class="w"> </span>-m<span class="w"> </span>playwright<span class="w"> </span>install<span class="w"> </span>chromium
+.venv-baxter/bin/python<span class="w"> </span>integrations/baxter/display_bridge.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--web-root<span class="w"> </span>/path/to/m-sarg/src/m_sarg/web3d/dist<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--rosbridge<span class="w"> </span>ws://ROS_WORKSTATION:9090<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--fps<span class="w"> </span><span class="m">5</span>
+</pre></div>
+</div>
+<p>Build the M web app and install the exported drawing GLB as described above before starting this command. The two repositories are both needed for this setup. The bridge uses rosbridge rather than importing <code class="docutils literal notranslate"><span class="pre">rospy</span></code>, allowing the renderer’s Python environment to be separate from Baxter’s older ROS installation.</p>
+<p>The renderer serves its local preview at <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8766/?face=drawing</span></code>. It does not publish frames until the Vizij runtime reports ready. Ctrl-C stops publishing; Baxter may retain the last frame. A ROS connection loss stops the bridge and requires a restart.</p>
+<p>Five frames per second is the initial setting, not a measured hardware limit. Raw 1024 × 600 RGB frames are about 1.8 MB each before base64 overhead. Start on a wired network and measure display latency before raising the rate (allowed range: 1–15 fps). Keep rosbridge on your robot network; the renderer needs access to its topics.</p>
+</section>
+<section id="speech-on-baxter">
+<h3>Speech on Baxter<a class="headerlink" href="#speech-on-baxter" title="Link to this heading"></a></h3>
+<p>Publish the speech contract above on ROS 1 <code class="docutils literal notranslate"><span class="pre">/face/visemes</span></code> and <code class="docutils literal notranslate"><span class="pre">/face/command</span></code>, synchronized with the audio player on the robot or companion computer. M’s ROS 2 speech node cannot publish directly into ROS 1 without an additional bridge. Idle blinking works without speech messages.</p>
+</section>
+</section>
+<section id="validation-status">
+<h2>Validation status<a class="headerlink" href="#validation-status" title="Link to this heading"></a></h2>
+<p>The M adapter has TypeScript, production-build, and motion-contract checks. A regenerated drawing GLB was loaded in its browser preview. The Baxter adapter has image-message and event-relay unit tests, but has not been run against a ROS master or physical Baxter. Neither robot’s hardware, audio timing, or display performance has been verified in this workspace.</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/m-sarg/src/m_sarg/web3d
+node<span class="w"> </span>--test<span class="w"> </span>src/drawingMotion.test.mjs
+node<span class="w"> </span>node_modules/typescript/bin/tsc<span class="w"> </span>--noEmit
+
+<span class="nb">cd</span><span class="w"> </span>/path/to/fcp_unr
+python3<span class="w"> </span>-m<span class="w"> </span>unittest<span class="w"> </span>discover<span class="w"> </span>-s<span class="w"> </span>integrations/baxter<span class="w"> </span>-p<span class="w"> </span><span class="s1">'test_*.py'</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="exports.html" class="btn btn-neutral float-left" title="Export formats" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="troubleshooting.html" class="btn btn-neutral float-right" title="Troubleshooting" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
