@@ -1,0 +1,287 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Train the feature detector &mdash; Face Rigging Studio documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=cfa3ec00" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Geometry and Vizij rigging" href="rigging.html" />
+    <link rel="prev" title="Loading and vectorization" href="extraction.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Face Rigging Studio
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="workflow.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pipeline.html">Pipeline overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extraction.html">Loading and vectorization</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="extraction.html#load-the-drawing">Load the drawing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="extraction.html#clean-the-image">Clean the image</a></li>
+<li class="toctree-l2"><a class="reference internal" href="extraction.html#vectorize-the-colored-regions">Vectorize the colored regions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="extraction.html#match-facial-features">Match facial features</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Train the feature detector</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#open-the-local-trainer">Open the local trainer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#prepare-a-folder">Prepare a folder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#review-and-save-labels">Review and save labels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#training-and-validation">Training and validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#measure-the-results">Measure the results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#export-resume-and-use-a-model">Export, resume, and use a model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#command-line-training">Command-line training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#implementation">Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="rigging.html">Geometry and Vizij rigging</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="rigging.html#build-movable-geometry">Build movable geometry</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="rigging.html#drawing-preserving-motion">Drawing-preserving motion</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="rigging.html#package-and-run-the-vizij-rig">Package and run the Vizij rig</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="speech.html">Speech and blinking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exports.html">Export formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robots.html">Running a drawn face on M and Baxter</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="robots.html#m-robot-ros-2">M robot (ROS 2)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="robots.html#speech-contract">Speech contract</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="robots.html#baxter-head-display-ros-1">Baxter head display (ROS 1)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="robots.html#set-up">Set up</a></li>
+<li class="toctree-l3"><a class="reference internal" href="robots.html#speech-on-baxter">Speech on Baxter</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="robots.html#validation-status">Validation status</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Code reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="development.html">Development and deployment</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="development.html#build-this-documentation">Build this documentation</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Face Rigging Studio</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Train the feature detector</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="train-the-feature-detector">
+<h1>Train the feature detector<a class="headerlink" href="#train-the-feature-detector" title="Link to this heading"></a></h1>
+<p>The separate local trainer can learn feature labels from a folder of drawings. Its folder picker and annotation interface are not included in the deployed website. This is a supervised region classifier: you correct the labels for extracted regions, then train a k-nearest-neighbor model on their measurements. No GPU or external service is required.</p>
+<p>The model labels regions after vectorization. It does not change image cleanup or tracing, recover missing ink, or separate connected features that were extracted as one region. It is separate from the original drawing canvas’s landmark-based classifier.</p>
+<section id="open-the-local-trainer">
+<h2>Open the local trainer<a class="headerlink" href="#open-the-local-trainer" title="Link to this heading"></a></h2>
+<p>From the repository directory, run:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>npm<span class="w"> </span>run<span class="w"> </span>training:local
+</pre></div>
+</div>
+<p>Open <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:3001</span></code> in a separate browser window. The trainer is served only on the local loopback address, has no external service dependencies at runtime, and uses the browser file picker to read the images you select. It does not send images or annotations to the hosted Face Studio website. Stop it with Ctrl-C in the terminal. Restart after changing its source code.</p>
+<p>The first setup requires <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">ci</span> <span class="pre">--legacy-peer-deps</span></code>. <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">run</span> <span class="pre">training:build</span></code> builds the tool without starting its server. Generated trainer assets live in <code class="docutils literal notranslate"><span class="pre">training/.cache/</span></code>, which is ignored by Git and is not copied into the website’s <code class="docutils literal notranslate"><span class="pre">build</span></code> directory.</p>
+</section>
+<section id="prepare-a-folder">
+<h2>Prepare a folder<a class="headerlink" href="#prepare-a-folder" title="Link to this heading"></a></h2>
+<p>Use one drawing per PNG, JPEG, or WebP file, up to 15 MB each. Subfolders are accepted. An optional local organization is:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>training/
+  images/
+    drawing-001.png
+    drawing-002.jpg
+    drawing-003.png
+  annotations/
+    fcp-annotations.json
+  output/
+    feature-model.json
+    metrics.json
+</pre></div>
+</div>
+<p>Images, annotation exports, and trained outputs in these directories are ignored by Git. You can select a folder elsewhere on your computer instead. The browser reads only the files you select; images are not uploaded to a server.</p>
+</section>
+<section id="review-and-save-labels">
+<h2>Review and save labels<a class="headerlink" href="#review-and-save-labels" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>Set <strong>Photo cleanup</strong> and <strong>Paper removal threshold</strong> for your images.</p></li>
+<li><p>Use the <strong>Feature Training — Dataset &amp; Model</strong> window in the local trainer.</p></li>
+<li><p>Choose <strong>Choose image folder</strong>, or <strong>Choose multiple images</strong> if directory selection is unavailable on your device.</p></li>
+<li><p>Compare the original image and extracted drawing. Select each region and correct its feature label. Use image-left/image-right, including separate pupil labels where appropriate. Keep unrelated marks as decoration.</p></li>
+<li><p>Select <strong>Training</strong> or <strong>Validation (held out)</strong> for the whole image.</p></li>
+<li><p>Check <strong>I reviewed every region label</strong>, then <strong>Save reviewed image</strong>.</p></li>
+<li><p>Move to the next image. Export annotations regularly to save your work.</p></li>
+</ol>
+<p>Suggestions are only starting points. Saving uncorrected mistakes teaches the model those mistakes. Images with extraction failures should be retraced with different cleanup settings or omitted until the features are usable.</p>
+<p>Navigation is blocked while a review has unsaved changes. Save it or use <strong>Discard unsaved review</strong> before moving on. There is no autosave; a page refresh clears the in-memory dataset and model.</p>
+</section>
+<section id="training-and-validation">
+<h2>Training and validation<a class="headerlink" href="#training-and-validation" title="Link to this heading"></a></h2>
+<p>Save at least two distinct training images before training. Add separate validation drawings to measure generalization. As a practical starting point, reserve roughly one in five drawings for validation and include examples of each feature in training. Small collections provide only a rough indication of performance.</p>
+<p>Keep all versions of the same drawing, and preferably all drawings from the same child, in one split. The app detects byte-identical images using SHA-256 and prevents them from appearing in both splits. It cannot recognize resized, edited, or rephotographed duplicates, so grouping those is your responsibility.</p>
+<p>Choose <strong>Train feature detector</strong>. The browser supports up to 100 saved images per training run; use the command-line trainer for larger datasets (up to 1000 images in this baseline format).</p>
+<p>Each region is represented by nine values:</p>
+<ul class="simple">
+<li><p>Center X and Y relative to the drawing bounds.</p></li>
+<li><p>Width and height relative to the drawing bounds.</p></li>
+<li><p>Aspect proportion and ink coverage.</p></li>
+<li><p>Red, green, and blue color values.</p></li>
+</ul>
+<p>The model uses five nearby labeled examples with distance-weighted voting. Position and geometry have more weight than color. Predictions with weak agreement or distant neighbors fall back to the studio’s position rules. The confidence score is neighbor agreement, not a calibrated probability.</p>
+<p>Training examples are stored in the model rather than compressed into neural-network weights. Prediction cost and file size grow with the dataset.</p>
+</section>
+<section id="measure-the-results">
+<h2>Measure the results<a class="headerlink" href="#measure-the-results" title="Link to this heading"></a></h2>
+<p>The report includes:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Metric</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Held-out region accuracy</p></td>
+<td><p>Fraction of validation regions whose top predicted label matches your reviewed label</p></td>
+</tr>
+<tr class="row-odd"><td><p>Confidence coverage</p></td>
+<td><p>Fraction of validation regions accepted by the confidence and distance thresholds</p></td>
+</tr>
+<tr class="row-even"><td><p>Per-class support, correct, predicted</p></td>
+<td><p>Counts in the exported metrics for evaluating each feature separately</p></td>
+</tr>
+<tr class="row-odd"><td><p>Missing training labels</p></td>
+<td><p>Feature types absent from the training set</p></td>
+</tr>
+</tbody>
+</table>
+<p>Validation images are never fitted into the model. If there are none, the interface reports that accuracy has not been measured. Accuracy evaluates the classifier’s top predictions, before heuristic fallback; it is not end-to-end tracing or rigging accuracy. Overall accuracy can hide errors in rare labels such as pupils, so inspect the per-class counts too.</p>
+</section>
+<section id="export-resume-and-use-a-model">
+<h2>Export, resume, and use a model<a class="headerlink" href="#export-resume-and-use-a-model" title="Link to this heading"></a></h2>
+<p><strong>Export annotations</strong> downloads <code class="docutils literal notranslate"><span class="pre">fcp-annotations.json</span></code>. It records image content IDs, names, extraction settings, region measurements, reviewed labels, and split assignments. It does not include image pixels or SVG paths.</p>
+<p>To resume, import the annotations and select the original image folder. Use the saved cleanup settings for each image. Matching extraction results restore the reviewed labels; changed settings or geometry require another review. Imported annotations merge by image content ID, replacing existing records for that image.</p>
+<p><strong>Export model</strong> saves a reusable JSON model. In the main Face Studio website, choose <strong>Load feature model</strong> and select that file. Keep <strong>Use trained detector</strong> enabled, then upload a drawing through the studio. Only inference runs in the website; training and annotation stay in the local tool. The import status reports how many labels came from the detector. Existing open drawings are not automatically relabeled.</p>
+<p>Models are currently loaded per browser session. Publishing the website does not automatically enable a locally trained model for everyone. Robot GLBs already contain their reviewed labels and rig, so robots do not need the detector to play an exported face.</p>
+</section>
+<section id="command-line-training">
+<h2>Command-line training<a class="headerlink" href="#command-line-training" title="Link to this heading"></a></h2>
+<p>Export the reviewed annotations from the local trainer, then run from the repository root:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>node<span class="w"> </span>training/train.mjs<span class="w"> </span>training/annotations/fcp-annotations.json<span class="w"> </span>training/output
+</pre></div>
+</div>
+<p>The command writes <code class="docutils literal notranslate"><span class="pre">feature-model.json</span></code> and <code class="docutils literal notranslate"><span class="pre">metrics.json</span></code>, using the same feature-model implementation as the browser. Load the resulting model in the studio. Raw images alone are not sufficient for supervised training; they must be traced and labeled first.</p>
+<p>The dataset format is documented in <a class="reference external" href="https://github.com/denielleoliva/fcp_unr/blob/main/training/dataset.schema.json">the JSON schema</a>. Runtime validation checks versions, dimensions, labels, finite numbers, unique image IDs, review status, and split assignments.</p>
+</section>
+<section id="implementation">
+<h2>Implementation<a class="headerlink" href="#implementation" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Responsibility</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">src/training/TrainingPanel.js</span></code></p></td>
+<td><p>Folder queue, annotation controls, dataset/model imports and exports</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">src/vizij/featureModel.mjs</span></code></p></td>
+<td><p>Feature measurements, validation, training, prediction, and metrics</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">training/local.cjs</span></code></p></td>
+<td><p>Local-only build and preview server</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">training/train.mjs</span></code></p></td>
+<td><p>Command-line trainer</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">src/vizij/featureModel.test.js</span></code></p></td>
+<td><p>Split isolation, validation, invariance, and fallback tests</p></td>
+</tr>
+</tbody>
+</table>
+<p>For a future learned segmentation or keypoint model, retain the original image folder alongside the exported annotations. This baseline’s region labels are useful supervision, but a pixel-level model would need an additional annotation/export format that preserves masks or keypoints.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="extraction.html" class="btn btn-neutral float-left" title="Loading and vectorization" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="rigging.html" class="btn btn-neutral float-right" title="Geometry and Vizij rigging" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

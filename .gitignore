@@ -2,3 +2,8 @@ node_modules
 .venv-docs/
 docs/_build/
 **/__pycache__/
+.venv-baxter/
+training/images/
+training/annotations/
+training/output/
+training/.cache/

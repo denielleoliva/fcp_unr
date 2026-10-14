@@ -66,6 +66,14 @@ npm run build
 
 Tests cover tracing, paper removal, connected regions, holes, feature matching, original contour preservation, mouth closure, eyelid geometry, morph buffers, and blink timing. Use `tests/fixtures/colored-face.png` to check the upload and export workflow manually.
 
+## Feature detector training
+
+Run `npm run training:local` and open http://127.0.0.1:3001 in a separate browser window to load drawings, review labels, and train locally. Export a model and load it into the main studio for detection. Training controls are excluded from the deployed website. See the [training guide](docs/training.md) for dataset preparation, held-out validation, and command-line training.
+
+## Robot displays
+
+See [M and Baxter integration](docs/robots.md) for installing exported faces on M’s ROS 2 web display and using the ROS 1 Baxter head-display bridge. M integration code lives in the separate `m-sarg` checkout.
+
 ## Documentation site
 
 Set up the documentation tools once (Python 3.11 or newer):

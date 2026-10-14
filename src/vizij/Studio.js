@@ -6,6 +6,7 @@ import './studio.css';
 import { RetroWindow } from './RetroDesktop';
 import { blinkAt } from './naturalFeatures';
 import RangeControl from './RangeControl';
+import { applyFeatureModel, validateModel } from './featureModel.mjs';
 const VizijPreview = lazy(() => import('./VizijPreview'));
 const download = (blob, name) => { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
 const sample = [
@@ -29,6 +30,7 @@ class PreviewBoundary extends React.Component {
   render() { return this.state.error ? <p role="alert">Preview unavailable: {this.state.error.message}. Your vectors are still available.</p> : this.props.children; }
 }
 export default function Studio({ paths, uploadedImage, active = true }) {
+  const [featureModel, setFeatureModel] = useState(null), [useModel, setUseModel] = useState(true);
   const [shapes, setShapes] = useState([]), [selected, setSelected] = useState(null);
   const [blob, setBlob] = useState(null), [busy, setBusy] = useState(false), [message, setMessage] = useState('');
   const [natural, setNatural] = useState(true);
@@ -64,8 +66,8 @@ export default function Studio({ paths, uploadedImage, active = true }) {
     try {
       const traced = src ? await traceImage(src, { threshold, photoMode }) : [];
       if (!mounted.current) return;
-      const found = assignFeatures([...traced, ...vectors]); setShapes(found); setSelected(found[0]?.id || null);
-      setMessage(found.length ? `${found.length} vectors found. Review the suggested labels before rigging.` : 'No colored regions found. Try a darker drawing or adjust paper removal.');
+      const found = applyFeatureModel(assignFeatures([...traced, ...vectors]), useModel ? featureModel : null); setShapes(found); setSelected(found[0]?.id || null);
+      setMessage(found.length ? `${found.length} vectors found. ${found.filter(s => s.labelSource === 'trained').length} labels from the trained detector. Review labels before rigging.` : 'No colored regions found. Try a darker drawing or adjust paper removal.');
     } catch (e) { if (mounted.current) setMessage(e.message); }
     finally { if (mounted.current) setBusy(false); }
   };
@@ -75,6 +77,14 @@ export default function Studio({ paths, uploadedImage, active = true }) {
     if (file.size > 15 * 1024 * 1024) { setMessage('Please use an image smaller than 15 MB.'); return; }
     const url = URL.createObjectURL(file); try { await load(url); } finally { URL.revokeObjectURL(url); }
     event.target.value = '';
+  };
+  const importModel = async event => {
+    const file = event.target.files[0]; event.target.value = ''; if (!file) return;
+    try {
+      if (file.size > 50 * 1024 * 1024) throw new Error('Model files must be under 50 MB.');
+      setFeatureModel(validateModel(JSON.parse(await file.text()))); setUseModel(true);
+      setMessage('Feature model loaded. Upload a drawing to apply it.');
+    } catch (error) { setMessage(error.message); }
   };
   const build = async () => {
     setBusy(true); setMessage('Building Vizij geometry and speech rig…'); let rig;
@@ -88,6 +98,7 @@ export default function Studio({ paths, uploadedImage, active = true }) {
     <header><div><span className="eyebrow">FACE STUDIO</span><h2>Drawing to Vizij</h2><p>Import a drawing, match its features, and make it speak.</p></div><a href="https://vizij.ai/" target="_blank" rel="noreferrer">About Vizij ↗</a></header>
     <div className="studio-toolbar"><label className="studio-button">Upload a drawing<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={upload} /></label><button disabled={busy || (!paths.length && !uploadedImage)} onClick={() => load(uploadedImage, paths)}>Use canvas drawing</button><button disabled={busy} onClick={() => { invalidate(); setShapes(assignFeatures(sample)); setSelected('shape-1'); setMessage('Example loaded. Review the feature labels, then build the face.'); }}>Try an example</button><label><input type="checkbox" checked={photoMode} onChange={e => setPhotoMode(e.target.checked)} /> Photo cleanup (line drawings)</label><RangeControl compact label="Paper removal threshold" min={190} max={254} step={1} value={threshold} onChange={setThreshold} format={v => String(v)} disabled={photoMode} /></div>
     <p className="studio-note">PNG, JPEG, or WebP · Images are traced locally. Cleanup settings apply to the next import. Use Photo cleanup for shaded paper; leave it off for solid colored fills. Clear, front-facing drawings on white paper work best.</p>
+    <div className="studio-toolbar"><label className="studio-button">Load feature model<input aria-label="Load feature model" type="file" accept=".json" onChange={importModel}/></label>{featureModel && <label><input type="checkbox" checked={useModel} onChange={e => setUseModel(e.target.checked)}/> Use trained detector ({featureModel.samples.length} regions)</label>}</div>
     <div className="studio-grid"><RetroWindow title="Drawing.bmp — Feature Editor" icon="▧"><div className="vector-stage"><svg viewBox="0 0 800 600" aria-label="Extracted drawing; select a feature to label it">{shapes.map(s => <Shape key={s.id} shape={s} onClick={() => setSelected(s.id)} style={{ cursor: 'pointer' }} />)}{current && <rect x={current.bounds.x - 5} y={current.bounds.y - 5} width={Math.max(10, current.bounds.width + 10)} height={Math.max(10, current.bounds.height + 10)} fill="none" stroke="#6949e8" strokeWidth="3" strokeDasharray="8 6" pointerEvents="none" />}</svg>{!shapes.length && <div className="stage-empty">Every great face starts with a scribble.<br /><small>Upload a drawing or try the example.</small></div>}</div>
     <div className="feature-editor"><label>Vector<select value={selected || ''} onChange={e => setSelected(e.target.value)} disabled={!shapes.length}>{!shapes.length && <option value="">No vectors yet</option>}{shapes.map((s, i) => <option value={s.id} key={s.id}>{i + 1} · {LABELS[s.role]}</option>)}</select></label><label>Feature match<select disabled={!current || busy} value={current?.role || 'decoration'} onChange={e => { invalidate(); setShapes(shapes.map(s => s.id === selected ? { ...s, role: e.target.value, confidence: 1 } : s)); }}>{ROLES.map(r => <option key={r} value={r}>{LABELS[r]}</option>)}</select></label><label>Color<input aria-label="Selected vector color" type="color" disabled={!current || busy} value={(current?.fill && current.fill !== 'none' ? current.fill : current?.stroke) || '#000000'} onChange={e => { invalidate(); setShapes(shapes.map(s => s.id === selected ? { ...s, [s.fill && s.fill !== 'none' ? 'fill' : 'stroke']: e.target.value } : s)); }} /></label></div>
     <p className="studio-note">Labels are suggestions, not recognition guarantees. Left and right refer to the image. Assign all pieces of a feature to the same label.</p>{missing.length > 0 && shapes.length > 0 && <p className="warning">Still to match: {missing.map(r => LABELS[r]).join(', ')}.</p>}<label className="natural-conversion"><input type="checkbox" checked={natural} disabled={busy} onChange={e => { invalidate(); setNatural(e.target.checked); }} /> Natural mouth & eye motion</label>{natural && <label className="natural-conversion"><input type="checkbox" checked={preserve} disabled={busy} onChange={e => { invalidate(); setPreserve(e.target.checked); }} /> Keep my drawn shapes</label>}<p className="studio-note">Keep your original outlines, pupils, and toothy grin while fixing mouth closure and blinking. Uncheck “Keep my drawn shapes” for smooth converted shapes. Rebuild after changing these options.</p><button className="primary" onClick={build} disabled={busy || !shapes.length || missing.length > 0}>{busy ? 'Working…' : 'Build speaking face →'}</button></RetroWindow>

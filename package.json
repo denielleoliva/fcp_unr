@@ -20,7 +20,9 @@
     "deploy": "gh-pages -d build --nojekyll",
     "test": "react-scripts test",
     "docs:build": ".venv-docs/bin/python -m sphinx -W --keep-going -b html docs docs/_build/html",
-    "docs:serve": ".venv-docs/bin/python -m http.server 8000 --directory docs/_build/html"
+    "docs:serve": ".venv-docs/bin/python -m http.server 8000 --directory docs/_build/html",
+    "training:local": "node training/local.cjs",
+    "training:build": "node training/local.cjs --build-only"
   },
   "devDependencies": {
     "gh-pages": "^6.0.0",

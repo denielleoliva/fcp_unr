@@ -1,0 +1,10 @@
+
+.training-section{margin:18px 0}.training-section summary{cursor:pointer;font-weight:bold;min-height:44px;padding:12px;background:#c0c0c0;box-shadow:var(--raised)}
+.training-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(200px,.8fr);gap:16px;align-items:start;margin:16px 0}
+.training-layout figure{margin:0;min-width:0}.training-layout img,.training-preview{display:block;width:100%;max-height:380px;object-fit:contain;background:white;border:1px solid #777}
+.training-fields{display:flex;flex-direction:column;gap:14px;min-width:0}.training-fields label{display:flex;flex-direction:column;gap:6px}.training-fields select{width:100%;min-height:44px}
+.training-fields input[type=checkbox]{width:22px;height:22px}.training-section p{line-height:1.6;overflow-wrap:anywhere}
+@media(max-width:900px){.training-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.training-fields{grid-column:1/-1}}
+@media(max-width:540px){.training-layout{grid-template-columns:minmax(0,1fr)}}
+
+.local-training.retro-desktop{padding:24px;min-height:100vh}.local-training main{max-width:1400px;margin:0 auto}.local-training h1{color:#fff;margin:0 0 12px}.local-training .local-intro{color:#fff;margin-bottom:20px}.local-training .training-layout{margin-top:20px}

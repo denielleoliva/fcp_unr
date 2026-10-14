@@ -13,9 +13,11 @@ Start with [Quick start](workflow.md) to build a face, or read the [pipeline ove
 workflow
 pipeline
 extraction
+training
 rigging
 speech
 exports
+robots
 troubleshooting
 ```
 
