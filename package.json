@@ -16,9 +16,11 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d build",
-    "test": "react-scripts test"
+    "predeploy": "npm run build && npm run docs:build && node scripts/copy-docs.cjs",
+    "deploy": "gh-pages -d build --nojekyll",
+    "test": "react-scripts test",
+    "docs:build": ".venv-docs/bin/python -m sphinx -W --keep-going -b html docs docs/_build/html",
+    "docs:serve": ".venv-docs/bin/python -m http.server 8000 --directory docs/_build/html"
   },
   "devDependencies": {
     "gh-pages": "^6.0.0",

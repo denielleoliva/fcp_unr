@@ -2,6 +2,8 @@
 
 Turn a colored drawing into a vector face with a [Vizij](https://vizij.ai/) runtime preview and a portable rigged GLB. The original drawing/landmark workspace remains available under **Drawing canvas**.
 
+Read the [documentation](docs/index.md) for the complete workflow, animation details, exports, and troubleshooting. The Sphinx site includes navigation and search.
+
 ## Run
 
 ```sh
@@ -63,3 +65,23 @@ npm run build
 ```
 
 Tests cover tracing, paper removal, connected regions, holes, feature matching, original contour preservation, mouth closure, eyelid geometry, morph buffers, and blink timing. Use `tests/fixtures/colored-face.png` to check the upload and export workflow manually.
+
+## Documentation site
+
+Set up the documentation tools once (Python 3.11 or newer):
+
+```sh
+python3 -m venv .venv-docs
+.venv-docs/bin/python -m pip install -r docs/requirements.txt
+```
+
+Build and preview:
+
+```sh
+npm run docs:build
+npm run docs:serve
+```
+
+Open http://localhost:8000. Edit the Markdown pages in `docs/` and rebuild to see changes.
+
+`npm run deploy` builds both the app and documentation, then publishes them together. After deployment, the documentation is served at https://denielleoliva.github.io/fcp_unr/docs/. The documentation environment must be installed before deploying.
