@@ -1,67 +1,65 @@
-# Face Rigging Studio
+# Face Rigging Studio — Drawing to Vizij
 
-A web app for drawing faces, rigging them with control points, and animating them with text-to-speech.
+Turn a colored drawing into a vector face with a [Vizij](https://vizij.ai/) runtime preview and a portable rigged GLB. The original drawing/landmark workspace remains available under **Drawing canvas**.
 
-## Features
+## Run
 
-- **Draw Mode**: Create faces using pen, rectangle, and circle tools
-- **Rig Points Mode**: Position control points on your drawing for animation
-- **Animate Mode**: Watch your drawing come alive with speech!
-
-Animations include:
-- Mouth opening/closing synced with speech
-- Eyebrow movement
-- Eye blinking (every 2-4 seconds)
-- Pupil movement
-
-
-## Local Development
-
-To run locally:
-
-```bash
-npm install
+```sh
+npm ci --legacy-peer-deps
 npm start
 ```
 
-Opens at [http://localhost:3000](http://localhost:3000)
+Open http://localhost:3000. `npm run build` produces the GitHub Pages build using the existing `/fcp_unr/` base path. React 18 uses React Three Fiber 8 and Drei 9; the legacy peer resolver accommodates Vizij’s broader rendering dependency declarations.
 
-## Usage
+## Workflow
 
-### Drawing Your Face
+1. Open **Drawing to Vizij**. Upload a PNG, JPEG, or WebP (up to 15 MB), use the drawing canvas, or try the example.
+2. For photographs of line drawings on shaded paper, enable **Photo cleanup (line drawings)** before uploading. Leave it off for broad solid color fills. Review the extracted vectors. Click a colored region or choose it in the **Vector** list. Correct its **Feature match** and color. Left/right mean image-left/image-right. A feature can contain multiple vectors. Keep hair, freckles, and other non-moving marks as decoration.
+3. Assign at least a left eye, right eye, and mouth, then **Build speaking face**. **Natural mouth & eye motion** and **Keep my drawn shapes** are enabled by default. The rig follows the original contours and colors, closes the mouth at rest, and covers pupils during blinking. Full mouth opening restores the drawn grin and teeth. Uncheck **Keep my drawn shapes** for smooth fitted features, or disable natural motion for the basic trace rig; rebuild after changing either option.
+4. Test mouth opening, lip rounding, blinking, gaze, and brows. Enter text and choose **Speak**; **Stop** cancels both speech and animation.
+5. Export **Vizij face (.glb)** for Vizij, **vectors** for SVG editing, or **feature map** for the extracted geometry, colors, and labels. Keep exports before refreshing; this workspace currently stores edits in memory.
 
-1. **Draw Mode**: Use the pen tool to draw eyes, eyebrows, and mouth
-2. **Rig Points Mode**: 
-   - Drag the eye control points to the center of each eye
-   - Drag eyebrow control points above each eye
-   - Drag the 4 mouth control points around the mouth (left, right, top, bottom)
-3. **Animate Mode**: 
-   - Enter text to speak
-   - Click "Animate with Speech"
-   - Watch your drawing come alive!
+The layout adapts to desktop and tablet screens. Drawing supports mouse, pen, and touch.
 
-### Detection Zones
+## What is generated
 
-- **Pupils**: 15px from eye center (small inner circles move)
-- **Eyes**: 40px from eye points (blink during speech)
-- **Eyebrows**: 60px from eyebrow points (lift during speech)
-- **Mouth**: 120px from mouth center (opens/closes with speech)
+Filled regions and strokes become Three.js meshes. Morph targets provide mouth opening/rounding, eye blinking and gaze, and brow raising. Original colors and relative feature positions are retained.
 
-## Troubleshooting
+The GLB contains:
 
-### Shapes not animating?
-- Check the debug panel to see detected shapes
-- Make sure control points are positioned over your drawings
-- Green glow = detected, Red glow = actively animating
+- Mesh geometry and morph targets, visible to standard glTF tools.
+- Vizij `RobotData` for each mesh and the root group, including animatable bindings.
+- A `VIZIJ_bundle` with the rig graph and speech pose configuration.
+- Standard input paths under `rig/drawing/standard/`:
 
-### Can't deploy?
-- Make sure you have Node.js installed
-- Check that your GitHub repository is public
-- Verify the homepage URL in package.json matches your GitHub username
+| Control | Path suffix | Range |
+| --- | --- | --- |
+| Jaw | `mouth/open/value` | 0–1 |
+| Round lips | `mouth/round/value` | 0–1 |
+| Blink | `eyes/blink/value` | 0–1 |
+| Horizontal gaze | `eyes/pos/x` | −1–1 |
+| Vertical gaze | `eyes/pos/y` | −1–1 |
+| Brows | `brows/raise/value` | 0–1 |
 
-## Technologies
+These are controls authored for this generated face; other Vizij faces may expose different channels. Speech poses are named `viseme_<id>` with IDs from `src/constants/visemes.js` and use `rig/drawing/poses/{id}.weight` when driven as poses. The app’s preview drives the standard mouth controls directly.
 
-- React 18
-- Tailwind CSS
-- Lucide React Icons
-- Web Speech API for text-to-speech
+The preview loads the exported GLB through `VizijRuntimeProvider` and `VizijRuntimeFace`. See `src/vizij/VizijPreview.js` for the runtime integration.
+
+References: [runtime tutorial](https://vizij.ai/tutorials/hello-face/), [control paths](https://vizij.ai/docs/rigging-and-control-model/), [Vizij source](https://github.com/vizij-ai/vizij-web).
+
+## Extraction and limitations
+
+Image processing runs locally: aspect-preserving downsampling to at most 240×180 (320×240 for photo cleanup), color quantization, linear-time connected components, and closed boundary tracing (including holes). It keeps at most 240 regions and drops tiny regions to bound geometry complexity. Paper removal excludes near-white pixels; its slider applies on the next import. Bright saturated colors remain detectable. Color regions become separate editable vector pieces. Photo cleanup uses local luminance contrast to discard broad paper shadows and groups shading variants within ink color families. Raster mesh generation uses exact horizontal pixel runs to preserve holes, including the gaps between drawn teeth.
+
+Feature matching uses position and size heuristics. Front-facing drawings on white paper are the best input. Connected features, colored backgrounds, photographs with shadows, highly asymmetric faces, or tiny details can require corrections or a cleaner scan. White details blend into paper and are removed. The output is a stylized 2D mesh rig. By default, natural motion retains the original mouth and eye traces and derives closing contours from their silhouettes. Pupil labels improve gaze and blinking; review inferred feature labels when fragments are misclassified. The optional smooth mode replaces these traces with fitted lips, eyelids, and a tooth band. With natural motion disabled, the basic mouth trace stretches and does not fully close if the drawing started open.
+
+Browser speech synthesis may use the browser/OS voice service. Word boundary events re-anchor the approximate text-to-viseme timeline when provided. Browsers do not expose reliable phoneme timestamps, so this is not precise audio-aligned lip sync. Accurate lip sync requires a speech service with phoneme timestamps or audio alignment.
+
+## Validation
+
+```sh
+npm test -- --watchAll=false --runInBand
+npm run build
+```
+
+Tests cover tracing, paper removal, connected regions, holes, feature matching, original contour preservation, mouth closure, eyelid geometry, morph buffers, and blink timing. Use `tests/fixtures/colored-face.png` to check the upload and export workflow manually.

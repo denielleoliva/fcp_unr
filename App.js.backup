@@ -1,9 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, Play, Trash2, Square, Circle, Pen, Move, Save, Undo } from 'lucide-react';
 
-// ─── Persistent Storage Helper ────────────────────────────────────────────────
-// Uses window.storage (artifact persistent storage) with localStorage as fallback.
-// All training data and the kNN model survive browser clears via window.storage.
 
 const store = {
   async get(key) {
@@ -40,17 +37,17 @@ export default function VectorDrawTTS() {
   const [mode, setMode] = useState('draw');
   const [color, setColor] = useState('#000000');
   const [penSize, setPenSize] = useState(3);
-  const [brushStyle, setBrushStyle] = useState('solid'); // 'solid', 'dashed', 'dotted', 'sketch'
+  const [brushStyle, setBrushStyle] = useState('solid');
   const [paths, setPaths] = useState([]);
-  const [pathHistory, setPathHistory] = useState([]); // For undo functionality
+  const [pathHistory, setPathHistory] = useState([]);
   const [currentPath, setCurrentPath] = useState(null);
-  const [uploadedImage, setUploadedImage] = useState(null); // Store uploaded image
-  const [imageOpacity, setImageOpacity] = useState(0.5); // Background image opacity
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [imageOpacity, setImageOpacity] = useState(0.5);
   const [isDrawing, setIsDrawing] = useState(false);
   const [text, setText] = useState('');
   const [isAnimating, setIsAnimating] = useState(false);
   const [mouthOpenAmount, setMouthOpenAmount] = useState(0);
-  const [blinkAmount, setBlinkAmount] = useState(0); // 0 = open, 1 = closed
+  const [blinkAmount, setBlinkAmount] = useState(0);
   const [pupilOffsetX, setPupilOffsetX] = useState(0);
   const [pupilOffsetY, setPupilOffsetY] = useState(0);
   const [trainingCount, setTrainingCount] = useState(0);
@@ -60,24 +57,23 @@ export default function VectorDrawTTS() {
   
   const svgRef = useRef(null);
 
-  // 6 Basic Expressions (Ekman's universal emotions)
   const expressions = {
     neutral: {
       name: 'Neutral',
       mouthOpen: 0,
-      mouthCurve: 0,      // -1 = frown, 0 = flat, 1 = smile
+      mouthCurve: 0,
       blink: 0,
-      eyebrowRaise: 0,    // -1 = down (angry), 0 = normal, 1 = up (surprised)
-      eyeWidth: 0,        // -1 = squint, 0 = normal, 1 = wide
+      eyebrowRaise: 0,
+      eyeWidth: 0,
       pupilX: 0,
       pupilY: 0,
     },
     happy: {
       name: 'Happy',
       mouthOpen: 0.3,
-      mouthCurve: 1,      // Big smile
+      mouthCurve: 1,
       blink: 0,
-      eyebrowRaise: 0.2,  // Slight raise
+      eyebrowRaise: 0.2,
       eyeWidth: 0,
       pupilX: 0,
       pupilY: 0,
@@ -85,20 +81,20 @@ export default function VectorDrawTTS() {
     sad: {
       name: 'Sad',
       mouthOpen: 0,
-      mouthCurve: -0.8,   // Frown
-      blink: 0.3,         // Slightly closed
-      eyebrowRaise: -0.4, // Inner corners raised
+      mouthCurve: -0.8,
+      blink: 0.3,
+      eyebrowRaise: -0.4,
       eyeWidth: -0.2,
       pupilX: 0,
-      pupilY: 0.3,        // Looking down
+      pupilY: 0.3,
     },
     angry: {
       name: 'Angry',
       mouthOpen: 0.2,
-      mouthCurve: -0.5,   // Slight frown
+      mouthCurve: -0.5,
       blink: 0,
-      eyebrowRaise: -1,   // Furrowed brow
-      eyeWidth: -0.3,     // Narrowed eyes
+      eyebrowRaise: -1,
+      eyeWidth: -0.3,
       pupilX: 0,
       pupilY: 0,
     },
@@ -107,8 +103,8 @@ export default function VectorDrawTTS() {
       mouthOpen: 0.8,
       mouthCurve: 0,
       blink: 0,
-      eyebrowRaise: 1,    // Raised high
-      eyeWidth: 1,        // Eyes wide open
+      eyebrowRaise: 1,
+      eyeWidth: 1,
       pupilX: 0,
       pupilY: 0,
     },
@@ -117,8 +113,8 @@ export default function VectorDrawTTS() {
       mouthOpen: 0.4,
       mouthCurve: -0.3,
       blink: 0,
-      eyebrowRaise: 0.8,  // Raised
-      eyeWidth: 0.8,      // Wide
+      eyebrowRaise: 0.8,
+      eyeWidth: 0.8,
       pupilX: 0,
       pupilY: 0,
     },
@@ -127,14 +123,13 @@ export default function VectorDrawTTS() {
       mouthOpen: 0.1,
       mouthCurve: -0.6,
       blink: 0.2,
-      eyebrowRaise: -0.5, // Lowered
-      eyeWidth: -0.4,     // Squinted
+      eyebrowRaise: -0.5,
+      eyeWidth: -0.4,
       pupilX: 0,
-      pupilY: -0.2,       // Looking up/away
+      pupilY: -0.2,
     },
   };
 
-  // Load training status on mount
   useEffect(() => {
     const loadStatus = async () => {
       const raw = await store.get('trainingData');
@@ -145,7 +140,6 @@ export default function VectorDrawTTS() {
     loadStatus();
   }, []);
 
-  // Animate to expression
   const animateToExpression = (expressionKey) => {
     if (isTransitioning) return;
     
@@ -162,14 +156,13 @@ export default function VectorDrawTTS() {
       pupilY: pupilOffsetY,
     };
 
-    const duration = 500; // ms
+    const duration = 500;
     const startTime = Date.now();
 
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      // Ease-in-out
       const eased = progress < 0.5
         ? 2 * progress * progress
         : 1 - Math.pow(-2 * progress + 2, 2) / 2;
@@ -189,26 +182,20 @@ export default function VectorDrawTTS() {
     requestAnimationFrame(animate);
   };
 
-  // ─── REGION-BASED ANIMATION SYSTEM ────────────────────────────────────────
-  // Uses influence maps with Gaussian falloff for smooth, organic deformation
   
-  // Calculate influence weight using Gaussian falloff
   const gaussianInfluence = (distance, radius) => {
-    // Returns 1.0 at center, falls to ~0 at radius distance
-    const sigma = radius / 2.5; // Standard deviation
+    const sigma = radius / 2.5;
     return Math.exp(-(distance * distance) / (2 * sigma * sigma));
   };
 
-  // Define facial regions with influence radii
   const getFacialRegions = (cp) => {
     return {
-      // Mouth region - largest influence
       mouth: {
         center: {
           x: (cp.mouthLeftCorner.x + cp.mouthRightCorner.x) / 2,
           y: (cp.mouthTopCenter.y + cp.mouthBottomCenter.y) / 2
         },
-        radius: 120, // Was 80
+        radius: 120,
         landmarks: [
           cp.mouthLeftCorner, cp.mouthRightCorner,
           cp.mouthTopLeft, cp.mouthTopCenter, cp.mouthTopRight,
@@ -216,39 +203,35 @@ export default function VectorDrawTTS() {
         ]
       },
       
-      // Left eye region
       leftEye: {
         center: cp.leftEyeCenter,
-        radius: 70, // Was 50
+        radius: 70,
         landmarks: [
           cp.leftEyeCenter, cp.leftEyeTop, cp.leftEyeBottom,
           cp.leftEyeInner, cp.leftEyeOuter
         ]
       },
       
-      // Right eye region
       rightEye: {
         center: cp.rightEyeCenter,
-        radius: 70, // Was 50
+        radius: 70,
         landmarks: [
           cp.rightEyeCenter, cp.rightEyeTop, cp.rightEyeBottom,
           cp.rightEyeInner, cp.rightEyeOuter
         ]
       },
       
-      // Left eyebrow region
       leftBrow: {
         center: cp.leftEyebrowMiddle,
-        radius: 60, // Was 40
+        radius: 60,
         landmarks: [
           cp.leftEyebrowInner, cp.leftEyebrowMiddle, cp.leftEyebrowOuter
         ]
       },
       
-      // Right eyebrow region
       rightBrow: {
         center: cp.rightEyebrowMiddle,
-        radius: 60, // Was 40
+        radius: 60,
         landmarks: [
           cp.rightEyebrowInner, cp.rightEyebrowMiddle, cp.rightEyebrowOuter
         ]
@@ -256,7 +239,6 @@ export default function VectorDrawTTS() {
     };
   };
 
-  // Apply region-based deformation to a point
   const applyRegionDeformation = (point, regionName, deformAmount, cp) => {
     const regions = getFacialRegions(cp);
     const region = regions[regionName];
@@ -267,83 +249,66 @@ export default function VectorDrawTTS() {
     const dy = point.y - region.center.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
-    // Calculate influence weight (0 to 1)
     const influence = gaussianInfluence(distance, region.radius);
     
-    // No influence if too far
     if (influence < 0.01) return { ...point };
 
     let offsetX = 0;
     let offsetY = 0;
 
-    // Apply region-specific deformations
     switch (regionName) {
       case 'mouth':
-        // Mouth opening: vertical stretch downward
         if (deformAmount > 0) {
-          const verticalStretch = deformAmount * 80; // Max 80px stretch (was 30)
-          // Bottom half stretches down, top half stretches up slightly
+          const verticalStretch = deformAmount * 80;
           if (dy > 0) {
             offsetY = verticalStretch * influence * (dy / region.radius);
           } else {
             offsetY = -verticalStretch * 0.3 * influence * (Math.abs(dy) / region.radius);
           }
           
-          // Slight horizontal compression (realistic mouth shape)
           offsetX = -dx * 0.2 * deformAmount * influence;
         }
-        // Mouth curve (smile/frown) - rotate corners
         const curveAmount = (expressions[currentExpression]?.mouthCurve || 0);
         if (Math.abs(curveAmount) > 0.01) {
           const horizontalDist = Math.abs(dx);
-          // Corners move up (smile) or down (frown)
           if (horizontalDist > region.radius * 0.3) {
-            offsetY += curveAmount * 40 * influence * (horizontalDist / region.radius); // Was 15
+            offsetY += curveAmount * 40 * influence * (horizontalDist / region.radius);
           }
         }
         break;
 
       case 'leftEye':
       case 'rightEye':
-        // Eye blink: vertical squash
         const blinkAmt = blinkAmount;
         if (blinkAmt > 0) {
-          // Top moves down, bottom moves up
           const eyeHeight = region.radius;
           if (dy < 0) {
-            // Top lid
-            offsetY = blinkAmt * eyeHeight * 1.2 * influence; // Was 0.7
+            offsetY = blinkAmt * eyeHeight * 1.2 * influence;
           } else {
-            // Bottom lid
-            offsetY = -blinkAmt * eyeHeight * 0.5 * influence; // Was 0.3
+            offsetY = -blinkAmt * eyeHeight * 0.5 * influence;
           }
           
-          // Slight horizontal compression when squinting
-          offsetX = -dx * 0.25 * blinkAmt * influence; // Was 0.15
+          offsetX = -dx * 0.25 * blinkAmt * influence;
         }
         
-        // Eye width changes
         const widthAmt = expressions[currentExpression]?.eyeWidth || 0;
         if (Math.abs(widthAmt) > 0.01) {
-          // Positive = widen, negative = squint
-          offsetX += dx * widthAmt * 0.5 * influence; // Was 0.3
-          offsetY += dy * widthAmt * 0.25 * influence; // Was 0.15
+          offsetX += dx * widthAmt * 0.5 * influence;
+          offsetY += dy * widthAmt * 0.25 * influence;
         }
         break;
 
       case 'leftBrow':
       case 'rightBrow':
-        // Eyebrow raise/lower
         const browRaise = expressions[currentExpression]?.eyebrowRaise || 0;
         if (Math.abs(browRaise) > 0.01) {
-          offsetY = -browRaise * 40 * influence; // Was 20 - Negative Y = up
+          offsetY = -browRaise * 40 * influence;
           
-          // Inner corners move more on sad expression
           if (browRaise < 0) {
             const innerBias = (regionName === 'leftBrow' && dx < 0) || 
                              (regionName === 'rightBrow' && dx > 0);
             if (innerBias) {
-              offsetY *= 1.5; // Inner corners exaggerated
+              offsetY *= 1.5;
             }
           }
         }
@@ -356,17 +321,14 @@ export default function VectorDrawTTS() {
     };
   };
 
-  // Deform an entire path using region-based animation
   const deformPath = (path) => {
     const cp = controlPoints;
     let deformedPath = { ...path };
 
     if (path.type === 'circle') {
-      // Deform circle center and radius
       let center = { x: path.cx, y: path.cy };
       let radius = path.r;
 
-      // Check which regions influence this circle
       const regions = getFacialRegions(cp);
       
       for (const [regionName, region] of Object.entries(regions)) {
@@ -376,7 +338,6 @@ export default function VectorDrawTTS() {
         );
         
         if (dist < region.radius * 1.5) {
-          // Apply deformation based on region
           let deformAmt = 0;
           
           if (regionName === 'mouth') deformAmt = mouthOpenAmount;
@@ -390,19 +351,16 @@ export default function VectorDrawTTS() {
       deformedPath.cx = center.x;
       deformedPath.cy = center.y;
       
-      // Scale radius slightly with mouth opening for eyes
       const eyeDist = Math.min(
         Math.sqrt(Math.pow(center.x - cp.leftEyeCenter.x, 2) + Math.pow(center.y - cp.leftEyeCenter.y, 2)),
         Math.sqrt(Math.pow(center.x - cp.rightEyeCenter.x, 2) + Math.pow(center.y - cp.rightEyeCenter.y, 2))
       );
       
       if (eyeDist < 50) {
-        // Eye squash during blink
         deformedPath.r = radius * (1 - blinkAmount * 0.3);
       }
 
     } else if (path.type === 'rect') {
-      // Deform rectangle corners
       let center = { x: path.x + path.width / 2, y: path.y + path.height / 2 };
       const regions = getFacialRegions(cp);
 
@@ -425,7 +383,6 @@ export default function VectorDrawTTS() {
       deformedPath.y = center.y - path.height / 2;
 
     } else if (path.type === 'path') {
-      // Deform each vertex in the path
       const commands = path.d.match(/[ML]\s*([\d.]+)\s+([\d.]+)/g);
       if (!commands) return deformedPath;
 
@@ -436,7 +393,6 @@ export default function VectorDrawTTS() {
         const [, letter, x, y] = match;
         let point = { x: parseFloat(x), y: parseFloat(y) };
 
-        // Apply all region deformations
         const regions = getFacialRegions(cp);
         for (const [regionName, region] of Object.entries(regions)) {
           const dist = Math.sqrt(
@@ -463,7 +419,6 @@ export default function VectorDrawTTS() {
   };
 
   const [controlPoints, setControlPoints] = useState({
-    // Eyes (5 points each - center + 4 corners for detailed eye shape)
     leftEyeCenter: { x: 250, y: 200 },
     leftEyeTop: { x: 250, y: 185 },
     leftEyeBottom: { x: 250, y: 215 },
@@ -476,7 +431,6 @@ export default function VectorDrawTTS() {
     rightEyeInner: { x: 535, y: 200 },
     rightEyeOuter: { x: 565, y: 200 },
     
-    // Eyebrows (3 points each for curved brows)
     leftEyebrowInner: { x: 235, y: 150 },
     leftEyebrowMiddle: { x: 250, y: 145 },
     leftEyebrowOuter: { x: 265, y: 150 },
@@ -485,7 +439,6 @@ export default function VectorDrawTTS() {
     rightEyebrowMiddle: { x: 550, y: 145 },
     rightEyebrowOuter: { x: 565, y: 150 },
     
-    // Mouth (8 points for detailed mouth control)
     mouthLeftCorner: { x: 330, y: 360 },
     mouthRightCorner: { x: 470, y: 360 },
     mouthTopLeft: { x: 360, y: 340 },
@@ -498,10 +451,8 @@ export default function VectorDrawTTS() {
 
   const [draggingPoint, setDraggingPoint] = useState(null);
 
-  // Force re-render when mouthOpenAmount changes
   useEffect(() => {
     if (isAnimating) {
-      // Force component update
     }
   }, [mouthOpenAmount, isAnimating]);
 
@@ -510,7 +461,6 @@ export default function VectorDrawTTS() {
     const scaleX = 800 / rect.width;
     const scaleY = 600 / rect.height;
     
-    // Handle touch events
     let clientX, clientY;
     if (e.touches && e.touches.length > 0) {
       clientX = e.touches[0].clientX;
@@ -530,7 +480,6 @@ export default function VectorDrawTTS() {
   };
 
   const handleMouseDown = (e) => {
-    // Prevent default touch behavior (scrolling)
     if (e.touches) {
       e.preventDefault();
     }
@@ -551,7 +500,6 @@ export default function VectorDrawTTS() {
 
     if (mode !== 'draw') return;
 
-    // Handle eraser
     if (tool === 'eraser') {
       handleEraser(pos);
       return;
@@ -600,7 +548,6 @@ export default function VectorDrawTTS() {
   };
 
   const handleMouseMove = (e) => {
-    // Prevent default touch behavior (scrolling)
     if (e.touches) {
       e.preventDefault();
     }
@@ -647,7 +594,7 @@ export default function VectorDrawTTS() {
     if (currentPath) {
       const newPaths = [...paths, currentPath];
       setPaths(newPaths);
-      setPathHistory([...pathHistory, paths]); // Save current state before adding
+      setPathHistory([...pathHistory, paths]);
       setCurrentPath(null);
     }
     setIsDrawing(false);
@@ -683,11 +630,9 @@ export default function VectorDrawTTS() {
   };
 
   const saveAsTrainingExample = async () => {
-    // Get existing training data
     const existingData = await store.get('trainingData');
     const trainingData = existingData ? JSON.parse(existingData) : [];
     
-    // Capture the current canvas as an image
     const svg = svgRef.current;
     const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement('canvas');
@@ -704,7 +649,6 @@ export default function VectorDrawTTS() {
       const imageData = canvas.toDataURL('image/png');
       URL.revokeObjectURL(url);
       
-      // Add this example with the image
       const example = {
         id: Date.now(),
         paths: paths,
@@ -732,7 +676,6 @@ export default function VectorDrawTTS() {
     
     const examples = JSON.parse(trainingData);
     
-    // Create a modal window to view examples
     const modal = document.createElement('div');
     modal.style.cssText = `
       position: fixed;
@@ -826,7 +769,6 @@ export default function VectorDrawTTS() {
     modal.appendChild(content);
     document.body.appendChild(modal);
     
-    // Close on outside click
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
         modal.remove();
@@ -834,7 +776,6 @@ export default function VectorDrawTTS() {
     });
   };
 
-  // Make these functions global so they can be called from the modal
   window.loadTrainingExample = async (index) => {
     const raw = await store.get('trainingData');
     const trainingData = JSON.parse(raw);
@@ -934,11 +875,6 @@ export default function VectorDrawTTS() {
     await trainKNNClassifier(examples);
   };
 
-  // ─── Feature Extraction ───────────────────────────────────────────────────
-  // Converts a single drawn shape into a normalized 8-dimensional feature vector:
-  //   [normalizedX, normalizedY, normalizedWidth, normalizedHeight,
-  //    aspectRatio, normalizedArea, isCircle, isClosed]
-  // All spatial features are divided by face bounding box so scale-invariant.
 
   const extractShapeFeatures = (shape, faceMinX, faceMinY, faceWidth, faceHeight) => {
     let cx, cy, w, h, isCircle = 0, pointCount = 0;
@@ -947,7 +883,7 @@ export default function VectorDrawTTS() {
       cx = shape.cx; cy = shape.cy;
       w = shape.r * 2; h = shape.r * 2;
       isCircle = 1;
-      pointCount = 100; // circles are always closed
+      pointCount = 100;
     } else if (shape.type === 'rect') {
       cx = shape.x + shape.width / 2;
       cy = shape.y + shape.height / 2;
@@ -968,7 +904,6 @@ export default function VectorDrawTTS() {
       w = maxX - minX; h = maxY - minY;
       pointCount = pts.length;
 
-      // Estimate closure: start point near end point?
       const startEnd = Math.hypot(pts[0].x - pts[pts.length-1].x, pts[0].y - pts[pts.length-1].y);
       isCircle = startEnd < 20 ? 0.8 : 0;
     } else {
@@ -979,21 +914,20 @@ export default function VectorDrawTTS() {
     const safeH = faceHeight || 1;
     const aspectRatio = h > 0 ? w / h : 1;
     const normArea = (w * h) / (safeW * safeH);
-    const isClosed = Math.min(1, pointCount / 20); // proxy for closedness
+    const isClosed = Math.min(1, pointCount / 20);
 
     return [
-      (cx - faceMinX) / safeW,        // normalised center X
-      (cy - faceMinY) / safeH,        // normalised center Y
-      w / safeW,                       // normalised width
-      h / safeH,                       // normalised height
-      Math.min(aspectRatio, 5) / 5,   // aspect ratio (capped)
-      Math.min(normArea, 1),           // normalised area
-      isCircle,                        // 1 = circle, 0 = other
-      isClosed,                        // 0–1 closure estimate
+      (cx - faceMinX) / safeW,
+      (cy - faceMinY) / safeH,
+      w / safeW,
+      h / safeH,
+      Math.min(aspectRatio, 5) / 5,
+      Math.min(normArea, 1),
+      isCircle,
+      isClosed,
     ];
   };
 
-  // Label each shape in a training example based on proximity to control points
   const labelShape = (shape, cp, faceMinX, faceMinY, faceWidth, faceHeight) => {
     let cx, cy;
     if (shape.type === 'circle') { cx = shape.cx; cy = shape.cy; }
@@ -1022,9 +956,6 @@ export default function VectorDrawTTS() {
     return best.d < threshold ? best.label : 'other';
   };
 
-  // ─── k-NN Classifier ──────────────────────────────────────────────────────
-  // We store all training vectors + labels. At inference time we compute
-  // cosine similarity to every stored vector and do majority vote among k=5 nearest.
 
   const LABELS = ['leftEye', 'rightEye', 'leftBrow', 'rightBrow', 'mouth', 'other'];
   const KNN_K = 5;
@@ -1037,12 +968,11 @@ export default function VectorDrawTTS() {
   };
 
   const trainKNNClassifier = async (examples) => {
-    const vectors = [];  // { features: float[], label: string }
+    const vectors = [];
 
     examples.forEach(example => {
       const { paths: exPaths, controlPoints: cp } = example;
 
-      // Face bounding box from all shapes in this example
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       exPaths.forEach(p => {
         if (p.type === 'circle') { minX=Math.min(minX,p.cx-p.r); maxX=Math.max(maxX,p.cx+p.r); minY=Math.min(minY,p.cy-p.r); maxY=Math.max(maxY,p.cy+p.r); }
@@ -1062,7 +992,6 @@ export default function VectorDrawTTS() {
       });
     });
 
-    // Save the kNN model to persistent storage
     await store.set('knnModel', JSON.stringify({ vectors, trainedAt: new Date().toISOString(), exampleCount: examples.length }));
     setModelTrained(true);
 
@@ -1072,17 +1001,14 @@ export default function VectorDrawTTS() {
   };
 
   const knnPredict = (features, model, k = KNN_K) => {
-    // Compute similarity to all training vectors
     const scored = model.vectors.map(v => ({
       label: v.label,
       sim: cosineSimilarity(features, v.features)
     }));
 
-    // Sort by similarity descending, take top k
     scored.sort((a, b) => b.sim - a.sim);
     const topK = scored.slice(0, k);
 
-    // Majority vote
     const votes = {};
     topK.forEach(({ label }) => { votes[label] = (votes[label] || 0) + 1; });
     return Object.entries(votes).reduce((a, b) => a[1] > b[1] ? a : b)[0];
@@ -1102,7 +1028,6 @@ export default function VectorDrawTTS() {
 
     const model = JSON.parse(modelStr);
 
-    // Face bounding box for current drawing
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     paths.forEach(p => {
       if (p.type === 'circle') { minX=Math.min(minX,p.cx-p.r); maxX=Math.max(maxX,p.cx+p.r); minY=Math.min(minY,p.cy-p.r); maxY=Math.max(maxY,p.cy+p.r); }
@@ -1114,7 +1039,6 @@ export default function VectorDrawTTS() {
     });
     const fw = maxX - minX, fh = maxY - minY;
 
-    // Classify each shape
     const classified = { leftEye: [], rightEye: [], leftBrow: [], rightBrow: [], mouth: [], other: [] };
 
     paths.forEach(shape => {
@@ -1126,9 +1050,8 @@ export default function VectorDrawTTS() {
 
     const newCP = { ...controlPoints };
 
-    // ── Set left eye ──
     if (classified.leftEye.length > 0) {
-      const e = classified.leftEye.reduce((a, b) => a.cx < b.cx ? a : b); // leftmost
+      const e = classified.leftEye.reduce((a, b) => a.cx < b.cx ? a : b);
       newCP.leftEyeCenter   = { x: e.cx, y: e.cy };
       newCP.leftEyeTop      = { x: e.cx, y: e.minY };
       newCP.leftEyeBottom   = { x: e.cx, y: e.maxY };
@@ -1136,9 +1059,8 @@ export default function VectorDrawTTS() {
       newCP.leftEyeOuter    = { x: e.maxX, y: e.cy };
     }
 
-    // ── Set right eye ──
     if (classified.rightEye.length > 0) {
-      const e = classified.rightEye.reduce((a, b) => a.cx > b.cx ? a : b); // rightmost
+      const e = classified.rightEye.reduce((a, b) => a.cx > b.cx ? a : b);
       newCP.rightEyeCenter  = { x: e.cx, y: e.cy };
       newCP.rightEyeTop     = { x: e.cx, y: e.minY };
       newCP.rightEyeBottom  = { x: e.cx, y: e.maxY };
@@ -1146,7 +1068,6 @@ export default function VectorDrawTTS() {
       newCP.rightEyeOuter   = { x: e.maxX, y: e.cy };
     }
 
-    // ── Set left eyebrow ──
     if (classified.leftBrow.length > 0) {
       const b = classified.leftBrow[0];
       newCP.leftEyebrowInner  = { x: b.minX, y: b.cy };
@@ -1154,7 +1075,6 @@ export default function VectorDrawTTS() {
       newCP.leftEyebrowOuter  = { x: b.maxX, y: b.cy };
     }
 
-    // ── Set right eyebrow ──
     if (classified.rightBrow.length > 0) {
       const b = classified.rightBrow[0];
       newCP.rightEyebrowInner  = { x: b.minX, y: b.cy };
@@ -1162,9 +1082,7 @@ export default function VectorDrawTTS() {
       newCP.rightEyebrowOuter  = { x: b.maxX, y: b.cy };
     }
 
-    // ── Set mouth ──
     if (classified.mouth.length > 0) {
-      // Merge all mouth shapes into one bounding box
       const mouthMinX = Math.min(...classified.mouth.map(m => m.minX));
       const mouthMaxX = Math.max(...classified.mouth.map(m => m.maxX));
       const mouthMinY = Math.min(...classified.mouth.map(m => m.minY));
@@ -1198,7 +1116,6 @@ export default function VectorDrawTTS() {
       : 'Could not classify any shapes. Add more training examples!');
   };
 
-  // Helper: get bounding box + center from any shape
   const extractBBox = (shape) => {
     if (shape.type === 'circle') return { cx: shape.cx, cy: shape.cy, minX: shape.cx-shape.r, maxX: shape.cx+shape.r, minY: shape.cy-shape.r, maxY: shape.cy+shape.r };
     if (shape.type === 'rect')   return { cx: shape.x+shape.width/2, cy: shape.y+shape.height/2, minX: shape.x, maxX: shape.x+shape.width, minY: shape.y, maxY: shape.y+shape.height };
@@ -1213,9 +1130,8 @@ export default function VectorDrawTTS() {
     return null;
   };
 
-  const analyzeTrainingPatterns = () => {}; // kept for compatibility
+  const analyzeTrainingPatterns = () => {};
   const exportAnimationHTML = () => {
-    // Create standalone HTML file with animation
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1621,7 +1537,6 @@ export default function VectorDrawTTS() {
   };
 
   const animateBlink = () => {
-    // Quick blink
     setBlinkAmount(1);
     setTimeout(() => {
       setBlinkAmount(0);
@@ -1629,8 +1544,7 @@ export default function VectorDrawTTS() {
   };
 
   const animatePupils = () => {
-    // Random subtle eye movement
-    const maxOffset = 3; // pixels
+    const maxOffset = 3;
     setPupilOffsetX((Math.random() - 0.5) * maxOffset);
     setPupilOffsetY((Math.random() - 0.5) * maxOffset);
   };
@@ -1655,17 +1569,14 @@ export default function VectorDrawTTS() {
     let mouthIntervalId, blinkIntervalId, pupilIntervalId;
     
     utterance.onstart = () => {
-      // Mouth animation
       mouthIntervalId = setInterval(() => {
         animateMouth();
       }, 150);
       
-      // Random blinking (every 2-4 seconds)
       blinkIntervalId = setInterval(() => {
         animateBlink();
       }, 2000 + Math.random() * 2000);
       
-      // Pupil movement (every 1-2 seconds)
       pupilIntervalId = setInterval(() => {
         animatePupils();
       }, 1000 + Math.random() * 1000);
@@ -1686,7 +1597,7 @@ export default function VectorDrawTTS() {
   };
 
   const clearCanvas = () => {
-    setPathHistory([...pathHistory, paths]); // Save before clearing
+    setPathHistory([...pathHistory, paths]);
     setPaths([]);
     setCurrentPath(null);
   };
@@ -1695,7 +1606,6 @@ export default function VectorDrawTTS() {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Check if it's an image
     if (!file.type.startsWith('image/')) {
       alert('Please upload an image file (PNG, JPG, etc.)');
       return;
@@ -1705,7 +1615,6 @@ export default function VectorDrawTTS() {
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        // Scale image to fit canvas (800x600)
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
@@ -1724,7 +1633,6 @@ export default function VectorDrawTTS() {
           height: canvas.height
         });
         
-        // Try to detect face features in the image
         detectFaceInImage(canvas);
       };
       img.src = e.target.result;
@@ -1733,14 +1641,12 @@ export default function VectorDrawTTS() {
   };
 
   const detectFaceInImage = (canvas) => {
-    // Simple edge detection to find facial features
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     
-    // Find dark regions (potential eyes/mouth)
     const darkRegions = [];
-    const threshold = 100; // Brightness threshold
+    const threshold = 100;
     
     for (let y = 0; y < canvas.height; y += 5) {
       for (let x = 0; x < canvas.width; x += 5) {
@@ -1754,13 +1660,10 @@ export default function VectorDrawTTS() {
     }
     
     if (darkRegions.length > 0) {
-      // Cluster dark regions to find eyes/mouth
       const clusters = clusterPoints(darkRegions, 30);
       
-      // Sort clusters by Y position
       clusters.sort((a, b) => a.centerY - b.centerY);
       
-      // Assume top clusters are eyes, bottom is mouth
       const upperThird = canvas.height / 3;
       const lowerThird = canvas.height * 0.6;
       
@@ -1783,7 +1686,6 @@ export default function VectorDrawTTS() {
       const cluster = [point];
       used.add(idx);
       
-      // Find nearby points
       points.forEach((other, otherIdx) => {
         if (used.has(otherIdx)) return;
         
@@ -1799,7 +1701,6 @@ export default function VectorDrawTTS() {
       });
       
       if (cluster.length > 5) {
-        // Calculate cluster center
         const centerX = cluster.reduce((sum, p) => sum + p.x, 0) / cluster.length;
         const centerY = cluster.reduce((sum, p) => sum + p.y, 0) / cluster.length;
         clusters.push({ centerX, centerY, size: cluster.length });
@@ -1831,8 +1732,7 @@ export default function VectorDrawTTS() {
   };
 
   const handleEraser = (pos) => {
-    // Find and remove path at position
-    const clickRadius = 20; // Detection radius for eraser
+    const clickRadius = 20;
     
     for (let i = paths.length - 1; i >= 0; i--) {
       const path = paths[i];
@@ -1851,7 +1751,6 @@ export default function VectorDrawTTS() {
           shouldDelete = true;
         }
       } else if (path.type === 'path') {
-        // For paths, check if click is near any point
         const commands = path.d.match(/[ML]\s*([\d.]+)\s+([\d.]+)/g);
         if (commands) {
           for (const cmd of commands) {
@@ -1872,18 +1771,17 @@ export default function VectorDrawTTS() {
       }
       
       if (shouldDelete) {
-        setPathHistory([...pathHistory, paths]); // Save before erasing
+        setPathHistory([...pathHistory, paths]);
         const newPaths = [...paths];
         newPaths.splice(i, 1);
         setPaths(newPaths);
-        break; // Only erase one path at a time
+        break;
       }
     }
   };
 
   const resetControlPoints = () => {
     setControlPoints({
-      // Eyes (5 points each)
       leftEyeCenter: { x: 250, y: 200 },
       leftEyeTop: { x: 250, y: 185 },
       leftEyeBottom: { x: 250, y: 215 },
@@ -1896,7 +1794,6 @@ export default function VectorDrawTTS() {
       rightEyeInner: { x: 535, y: 200 },
       rightEyeOuter: { x: 565, y: 200 },
       
-      // Eyebrows (3 points each)
       leftEyebrowInner: { x: 235, y: 150 },
       leftEyebrowMiddle: { x: 250, y: 145 },
       leftEyebrowOuter: { x: 265, y: 150 },
@@ -1905,7 +1802,6 @@ export default function VectorDrawTTS() {
       rightEyebrowMiddle: { x: 550, y: 145 },
       rightEyebrowOuter: { x: 565, y: 150 },
       
-      // Mouth (8 points)
       mouthLeftCorner: { x: 330, y: 360 },
       mouthRightCorner: { x: 470, y: 360 },
       mouthTopLeft: { x: 360, y: 340 },
@@ -1923,7 +1819,6 @@ export default function VectorDrawTTS() {
       return;
     }
 
-    // Analyze all paths to find bounding boxes and centroids
     const pathData = paths.map(path => {
       let minX = Infinity, maxX = -Infinity;
       let minY = Infinity, maxY = -Infinity;
@@ -1982,7 +1877,6 @@ export default function VectorDrawTTS() {
       };
     });
 
-    // Find overall bounding box
     const allMinX = Math.min(...pathData.map(p => p.minX));
     const allMaxX = Math.max(...pathData.map(p => p.maxX));
     const allMinY = Math.min(...pathData.map(p => p.minY));
@@ -1993,43 +1887,31 @@ export default function VectorDrawTTS() {
     const faceCenterX = (allMinX + allMaxX) / 2;
     const faceCenterY = (allMinY + allMaxY) / 2;
 
-    // Divide face into regions
     const topThird = allMinY + faceHeight * 0.33;
     const middleThird = allMinY + faceHeight * 0.66;
 
-    // Find potential eyes - improved criteria
     const potentialEyes = pathData.filter(p => {
-      // Must be in upper third of face
       const inUpperRegion = p.centerY < topThird + faceHeight * 0.15;
       
-      // Reasonable eye size (not too big or small)
       const reasonableSize = p.width > 15 && p.width < faceWidth * 0.4 && 
                             p.height > 10 && p.height < faceHeight * 0.3;
       
-      // Aspect ratio close to circular/oval (0.5 to 2.0)
       const goodAspectRatio = p.aspectRatio > 0.5 && p.aspectRatio < 2.0;
       
-      // Prefer circles, but accept reasonable closed paths
       const goodType = p.path.type === 'circle' || 
                        (p.path.type === 'path' && p.points.length > 5);
       
       return inUpperRegion && reasonableSize && goodAspectRatio && goodType;
     }).sort((a, b) => {
-      // Sort by: 1) How centered horizontally, 2) Similar Y position, 3) Similar size
       const aCenteredness = Math.abs(a.centerX - faceCenterX);
       const bCenteredness = Math.abs(b.centerX - faceCenterX);
       return aCenteredness - bCenteredness;
     });
 
-    // If we have potential eyes, pick the two that are:
-    // 1. Most horizontally separated
-    // 2. At similar Y heights
-    // 3. Similar sizes
     let leftEye = null;
     let rightEye = null;
     
     if (potentialEyes.length >= 2) {
-      // Find pairs that are well-separated horizontally and aligned vertically
       let bestPair = null;
       let bestScore = -1;
       
@@ -2038,33 +1920,25 @@ export default function VectorDrawTTS() {
           const eye1 = potentialEyes[i];
           const eye2 = potentialEyes[j];
           
-          // Calculate horizontal separation
           const separation = Math.abs(eye1.centerX - eye2.centerX);
           
-          // Calculate vertical alignment (prefer eyes at similar heights)
           const yDiff = Math.abs(eye1.centerY - eye2.centerY);
           
-          // Calculate size similarity
           const sizeDiff = Math.abs(eye1.area - eye2.area);
           const avgArea = (eye1.area + eye2.area) / 2;
           const sizeRatio = sizeDiff / avgArea;
           
-          // Good separation (at least 20% of face width)
           const goodSeparation = separation > faceWidth * 0.2;
           
-          // Good alignment (Y difference less than 15% of face height)
           const goodAlignment = yDiff < faceHeight * 0.15;
           
-          // Similar sizes (size difference less than 50% of average)
           const similarSize = sizeRatio < 0.5;
           
           if (goodSeparation && goodAlignment && similarSize) {
-            // Score based on separation (prefer wider apart) and alignment
             const score = separation - (yDiff * 2) - (sizeDiff * 0.1);
             
             if (score > bestScore) {
               bestScore = score;
-              // Assign left/right based on X position
               if (eye1.centerX < eye2.centerX) {
                 bestPair = { left: eye1, right: eye2 };
               } else {
@@ -2079,13 +1953,11 @@ export default function VectorDrawTTS() {
         leftEye = bestPair.left;
         rightEye = bestPair.right;
       } else if (potentialEyes.length >= 2) {
-        // Fallback: just use the two leftmost and rightmost
         const sorted = [...potentialEyes].sort((a, b) => a.centerX - b.centerX);
         leftEye = sorted[0];
         rightEye = sorted[sorted.length - 1];
       }
     } else if (potentialEyes.length === 1) {
-      // Only one eye found
       const eye = potentialEyes[0];
       if (eye.centerX < faceCenterX) {
         leftEye = eye;
@@ -2094,24 +1966,21 @@ export default function VectorDrawTTS() {
       }
     }
 
-    // Find potential eyebrows (above eyes, horizontal shapes)
     const potentialEyebrows = pathData.filter(p =>
       p.centerY < topThird &&
       p.centerY > allMinY - 50 &&
-      p.width > p.height && // More horizontal than vertical
-      p.width > 20 // Reasonable minimum width
+      p.width > p.height &&
+      p.width > 20
     ).sort((a, b) => a.centerX - b.centerX);
 
-    // Find potential mouth (lower third, larger horizontal shape)
     const potentialMouths = pathData.filter(p =>
       p.centerY > middleThird &&
-      p.width > 40 && // Reasonable minimum width
-      p.width > p.height // More horizontal than vertical
-    ).sort((a, b) => b.width - a.width); // Sort by width (largest first)
+      p.width > 40 &&
+      p.width > p.height
+    ).sort((a, b) => b.width - a.width);
 
     const newControlPoints = { ...controlPoints };
 
-    // Set eyes
     if (leftEye) {
       newControlPoints.leftEyeCenter = { x: leftEye.centerX, y: leftEye.centerY };
       newControlPoints.leftEyeTop = { x: leftEye.centerX, y: leftEye.minY };
@@ -2128,36 +1997,30 @@ export default function VectorDrawTTS() {
       newControlPoints.rightEyeOuter = { x: rightEye.maxX, y: rightEye.centerY };
     }
 
-    // Set eyebrows
     if (potentialEyebrows.length >= 2) {
       const leftBrow = potentialEyebrows[0];
       const rightBrow = potentialEyebrows[1];
       
-      // Left eyebrow
       newControlPoints.leftEyebrowInner = { x: leftBrow.minX, y: leftBrow.centerY };
       newControlPoints.leftEyebrowMiddle = { x: leftBrow.centerX, y: leftBrow.minY };
       newControlPoints.leftEyebrowOuter = { x: leftBrow.maxX, y: leftBrow.centerY };
       
-      // Right eyebrow
       newControlPoints.rightEyebrowInner = { x: rightBrow.minX, y: rightBrow.centerY };
       newControlPoints.rightEyebrowMiddle = { x: rightBrow.centerX, y: rightBrow.minY };
       newControlPoints.rightEyebrowOuter = { x: rightBrow.maxX, y: rightBrow.centerY };
     } else if (potentialEyebrows.length === 1) {
       const brow = potentialEyebrows[0];
       if (brow.centerX < faceCenterX) {
-        // Left eyebrow
         newControlPoints.leftEyebrowInner = { x: brow.minX, y: brow.centerY };
         newControlPoints.leftEyebrowMiddle = { x: brow.centerX, y: brow.minY };
         newControlPoints.leftEyebrowOuter = { x: brow.maxX, y: brow.centerY };
       } else {
-        // Right eyebrow
         newControlPoints.rightEyebrowInner = { x: brow.minX, y: brow.centerY };
         newControlPoints.rightEyebrowMiddle = { x: brow.centerX, y: brow.minY };
         newControlPoints.rightEyebrowOuter = { x: brow.maxX, y: brow.centerY };
       }
     }
 
-    // Set mouth
     if (potentialMouths.length > 0) {
       const mouth = potentialMouths[0];
       
@@ -2175,9 +2038,8 @@ export default function VectorDrawTTS() {
     }
 
     setControlPoints(newControlPoints);
-    setMode('rig'); // Switch to rig mode to show results
+    setMode('rig');
     
-    // Provide feedback
     const detected = [];
     if (leftEye && rightEye) detected.push('both eyes');
     else if (leftEye || rightEye) detected.push('one eye');
@@ -2249,7 +2111,6 @@ export default function VectorDrawTTS() {
       return Math.sqrt(dx * dx + dy * dy);
     };
 
-    // Check for pupils (very close to eye center)
     const distToLeftEyeCenter = distanceToPoint(cp.leftEyeCenter.x, cp.leftEyeCenter.y);
     const distToRightEyeCenter = distanceToPoint(cp.rightEyeCenter.x, cp.rightEyeCenter.y);
     
@@ -2260,7 +2121,6 @@ export default function VectorDrawTTS() {
       return { type: 'rightPupil', eyeX: cp.rightEyeCenter.x, eyeY: cp.rightEyeCenter.y };
     }
 
-    // Check for eye shapes (near any of the 5 eye points)
     const leftEyePoints = [cp.leftEyeCenter, cp.leftEyeTop, cp.leftEyeBottom, cp.leftEyeInner, cp.leftEyeOuter];
     const rightEyePoints = [cp.rightEyeCenter, cp.rightEyeTop, cp.rightEyeBottom, cp.rightEyeInner, cp.rightEyeOuter];
     
@@ -2276,14 +2136,12 @@ export default function VectorDrawTTS() {
       }
     }
 
-    // Check for mouth (near any of the 8 mouth points)
     const mouthPoints = [
       cp.mouthLeftCorner, cp.mouthRightCorner,
       cp.mouthTopLeft, cp.mouthTopCenter, cp.mouthTopRight,
       cp.mouthBottomLeft, cp.mouthBottomCenter, cp.mouthBottomRight
     ];
     
-    // Calculate mouth center from all points
     const mouthCenterX = mouthPoints.reduce((sum, p) => sum + p.x, 0) / mouthPoints.length;
     const mouthCenterY = mouthPoints.reduce((sum, p) => sum + p.y, 0) / mouthPoints.length;
     
@@ -2293,7 +2151,6 @@ export default function VectorDrawTTS() {
       }
     }
 
-    // Check for eyebrows (near any of the 3 eyebrow points)
     const leftBrowPoints = [cp.leftEyebrowInner, cp.leftEyebrowMiddle, cp.leftEyebrowOuter];
     const rightBrowPoints = [cp.rightEyebrowInner, cp.rightEyebrowMiddle, cp.rightEyebrowOuter];
     
@@ -2313,7 +2170,6 @@ export default function VectorDrawTTS() {
   };
 
   const renderPath = (path, index) => {
-    // Apply region-based deformation whenever there's any animation parameter active
     let renderedPath = path;
     
     if (mouthOpenAmount > 0 || blinkAmount > 0 || Math.abs(pupilOffsetX) > 0.01 || Math.abs(pupilOffsetY) > 0.01) {
@@ -2413,33 +2269,33 @@ export default function VectorDrawTTS() {
     
     return (
       <g>
-        {/* Connection lines */}
+        {}
         <g stroke="#64748b" strokeWidth="2" strokeDasharray="5,5" opacity="0.5">
-          {/* Left eye shape */}
+          {}
           <line x1={cp.leftEyeCenter.x} y1={cp.leftEyeCenter.y} x2={cp.leftEyeTop.x} y2={cp.leftEyeTop.y} />
           <line x1={cp.leftEyeCenter.x} y1={cp.leftEyeCenter.y} x2={cp.leftEyeBottom.x} y2={cp.leftEyeBottom.y} />
           <line x1={cp.leftEyeCenter.x} y1={cp.leftEyeCenter.y} x2={cp.leftEyeInner.x} y2={cp.leftEyeInner.y} />
           <line x1={cp.leftEyeCenter.x} y1={cp.leftEyeCenter.y} x2={cp.leftEyeOuter.x} y2={cp.leftEyeOuter.y} />
           
-          {/* Right eye shape */}
+          {}
           <line x1={cp.rightEyeCenter.x} y1={cp.rightEyeCenter.y} x2={cp.rightEyeTop.x} y2={cp.rightEyeTop.y} />
           <line x1={cp.rightEyeCenter.x} y1={cp.rightEyeCenter.y} x2={cp.rightEyeBottom.x} y2={cp.rightEyeBottom.y} />
           <line x1={cp.rightEyeCenter.x} y1={cp.rightEyeCenter.y} x2={cp.rightEyeInner.x} y2={cp.rightEyeInner.y} />
           <line x1={cp.rightEyeCenter.x} y1={cp.rightEyeCenter.y} x2={cp.rightEyeOuter.x} y2={cp.rightEyeOuter.y} />
           
-          {/* Left eyebrow curve */}
+          {}
           <line x1={cp.leftEyebrowInner.x} y1={cp.leftEyebrowInner.y} x2={cp.leftEyebrowMiddle.x} y2={cp.leftEyebrowMiddle.y} />
           <line x1={cp.leftEyebrowMiddle.x} y1={cp.leftEyebrowMiddle.y} x2={cp.leftEyebrowOuter.x} y2={cp.leftEyebrowOuter.y} />
           
-          {/* Right eyebrow curve */}
+          {}
           <line x1={cp.rightEyebrowInner.x} y1={cp.rightEyebrowInner.y} x2={cp.rightEyebrowMiddle.x} y2={cp.rightEyebrowMiddle.y} />
           <line x1={cp.rightEyebrowMiddle.x} y1={cp.rightEyebrowMiddle.y} x2={cp.rightEyebrowOuter.x} y2={cp.rightEyebrowOuter.y} />
           
-          {/* Eyebrow to eye connections */}
+          {}
           <line x1={cp.leftEyebrowMiddle.x} y1={cp.leftEyebrowMiddle.y} x2={cp.leftEyeCenter.x} y2={cp.leftEyeCenter.y} />
           <line x1={cp.rightEyebrowMiddle.x} y1={cp.rightEyebrowMiddle.y} x2={cp.rightEyeCenter.x} y2={cp.rightEyeCenter.y} />
           
-          {/* Mouth outline */}
+          {}
           <line x1={cp.mouthLeftCorner.x} y1={cp.mouthLeftCorner.y} x2={cp.mouthTopLeft.x} y2={cp.mouthTopLeft.y} />
           <line x1={cp.mouthTopLeft.x} y1={cp.mouthTopLeft.y} x2={cp.mouthTopCenter.x} y2={cp.mouthTopCenter.y} />
           <line x1={cp.mouthTopCenter.x} y1={cp.mouthTopCenter.y} x2={cp.mouthTopRight.x} y2={cp.mouthTopRight.y} />
@@ -2449,36 +2305,36 @@ export default function VectorDrawTTS() {
           <line x1={cp.mouthBottomCenter.x} y1={cp.mouthBottomCenter.y} x2={cp.mouthBottomLeft.x} y2={cp.mouthBottomLeft.y} />
           <line x1={cp.mouthBottomLeft.x} y1={cp.mouthBottomLeft.y} x2={cp.mouthLeftCorner.x} y2={cp.mouthLeftCorner.y} />
           
-          {/* Face midline */}
+          {}
           <line x1={(cp.leftEyeCenter.x + cp.rightEyeCenter.x) / 2} y1={cp.leftEyeCenter.y} 
                 x2={(cp.mouthTopCenter.x + cp.mouthBottomCenter.x) / 2} y2={(cp.mouthTopCenter.y + cp.mouthBottomCenter.y) / 2} />
         </g>
 
-        {/* Left Eye Control Points */}
+        {}
         {renderControlPoint('leftEyeCenter', cp.leftEyeCenter, '#3b82f6', 'LE C')}
         {renderControlPoint('leftEyeTop', cp.leftEyeTop, '#60a5fa', 'LE T')}
         {renderControlPoint('leftEyeBottom', cp.leftEyeBottom, '#60a5fa', 'LE B')}
         {renderControlPoint('leftEyeInner', cp.leftEyeInner, '#60a5fa', 'LE I')}
         {renderControlPoint('leftEyeOuter', cp.leftEyeOuter, '#60a5fa', 'LE O')}
         
-        {/* Right Eye Control Points */}
+        {}
         {renderControlPoint('rightEyeCenter', cp.rightEyeCenter, '#3b82f6', 'RE C')}
         {renderControlPoint('rightEyeTop', cp.rightEyeTop, '#60a5fa', 'RE T')}
         {renderControlPoint('rightEyeBottom', cp.rightEyeBottom, '#60a5fa', 'RE B')}
         {renderControlPoint('rightEyeInner', cp.rightEyeInner, '#60a5fa', 'RE I')}
         {renderControlPoint('rightEyeOuter', cp.rightEyeOuter, '#60a5fa', 'RE O')}
         
-        {/* Left Eyebrow Control Points */}
+        {}
         {renderControlPoint('leftEyebrowInner', cp.leftEyebrowInner, '#8b5cf6', 'LB I')}
         {renderControlPoint('leftEyebrowMiddle', cp.leftEyebrowMiddle, '#8b5cf6', 'LB M')}
         {renderControlPoint('leftEyebrowOuter', cp.leftEyebrowOuter, '#8b5cf6', 'LB O')}
         
-        {/* Right Eyebrow Control Points */}
+        {}
         {renderControlPoint('rightEyebrowInner', cp.rightEyebrowInner, '#8b5cf6', 'RB I')}
         {renderControlPoint('rightEyebrowMiddle', cp.rightEyebrowMiddle, '#8b5cf6', 'RB M')}
         {renderControlPoint('rightEyebrowOuter', cp.rightEyebrowOuter, '#8b5cf6', 'RB O')}
         
-        {/* Mouth Control Points */}
+        {}
         {renderControlPoint('mouthLeftCorner', cp.mouthLeftCorner, '#ec4899', 'M LC')}
         {renderControlPoint('mouthRightCorner', cp.mouthRightCorner, '#ec4899', 'M RC')}
         {renderControlPoint('mouthTopLeft', cp.mouthTopLeft, '#f472b6', 'M TL')}
@@ -2552,7 +2408,7 @@ export default function VectorDrawTTS() {
 
             {mode === 'draw' && (
               <div className="space-y-3 mb-4">
-                {/* Image Upload Section */}
+                {}
                 <div className="flex items-center gap-4 flex-wrap bg-blue-50 p-3 rounded-lg">
                   <label className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium">
                     Upload Face Image
@@ -2589,7 +2445,7 @@ export default function VectorDrawTTS() {
                   )}
                 </div>
 
-                {/* Tool Selection */}
+                {}
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex gap-2">
                     <button
@@ -2664,9 +2520,9 @@ export default function VectorDrawTTS() {
                   </button>
                 </div>
 
-                {/* Pen Size and Brush Style */}
+                {}
                 <div className="flex items-center gap-6 flex-wrap bg-gray-50 p-3 rounded-lg">
-                  {/* Pen Size */}
+                  {}
                   <div className="flex items-center gap-3">
                     <label className="text-sm font-medium text-gray-700">Size:</label>
                     <input
@@ -2680,7 +2536,7 @@ export default function VectorDrawTTS() {
                     <span className="text-sm font-medium text-gray-600 w-8">{penSize}px</span>
                   </div>
 
-                  {/* Brush Style */}
+                  {}
                   <div className="flex items-center gap-2">
                     <label className="text-sm font-medium text-gray-700">Brush:</label>
                     <button
@@ -2745,11 +2601,11 @@ export default function VectorDrawTTS() {
                   </button>
                 </div>
                 
-                {/* Training features */}
+                {}
                 <div className="space-y-2 bg-purple-50 p-3 rounded-lg">
                   <div className="text-sm font-medium text-purple-900">Training Dataset:</div>
                   
-                  {/* Status badges */}
+                  {}
                   <div className="flex gap-2 flex-wrap">
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${trainingCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {trainingCount} example{trainingCount !== 1 ? 's' : ''} saved
@@ -2844,7 +2700,7 @@ export default function VectorDrawTTS() {
               >
                 <rect width="800" height="600" fill="white" />
                 
-                {/* Uploaded image as background */}
+                {}
                 {uploadedImage && (
                   <image
                     href={uploadedImage.url}
@@ -2892,7 +2748,7 @@ export default function VectorDrawTTS() {
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Speech Animation</h2>
             
-            {/* Expression Buttons */}
+            {}
             <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border-2 border-purple-200">
               <h3 className="font-semibold text-gray-800 mb-3 text-center">6 Basic Expressions</h3>
               <div className="grid grid-cols-2 gap-2">

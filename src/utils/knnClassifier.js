@@ -3,7 +3,7 @@ import store from './storage';
 // Extract feature vector from a shape (8D, scale-invariant)
 export const extractFeatures = (shape, faceBounds) => {
   const { minX, minY, width, height, area } = faceBounds;
-  
+
   let centerX, centerY, shapeWidth, shapeHeight, shapeArea;
   let isCircle = 0;
   let closure = 0;
@@ -25,11 +25,10 @@ export const extractFeatures = (shape, faceBounds) => {
     isCircle = 0;
     closure = 0.9;
   } else if (shape.type === 'path') {
-    // Extract all coordinates from all command types
+
     const coords = shape.d.match(/([-+]?[\d.]+)/g);
     if (!coords || coords.length < 2) return null;
-    
-    // Parse coordinate pairs
+
     const points = [];
     for (let i = 0; i < coords.length; i += 2) {
       if (i + 1 < coords.length) {
@@ -39,22 +38,22 @@ export const extractFeatures = (shape, faceBounds) => {
         });
       }
     }
-    
+
     if (points.length === 0) return null;
-    
+
     const xs = points.map(p => p.x);
     const ys = points.map(p => p.y);
     const minPX = Math.min(...xs);
     const maxPX = Math.max(...xs);
     const minPY = Math.min(...ys);
     const maxPY = Math.max(...ys);
-    
+
     centerX = (minPX + maxPX) / 2;
     centerY = (minPY + maxPY) / 2;
     shapeWidth = maxPX - minPX;
     shapeHeight = maxPY - minPY;
     shapeArea = shapeWidth * shapeHeight;
-    
+
     const firstPt = points[0];
     const lastPt = points[points.length - 1];
     const dist = Math.sqrt(Math.pow(lastPt.x - firstPt.x, 2) + Math.pow(lastPt.y - firstPt.y, 2));
@@ -78,7 +77,6 @@ export const extractFeatures = (shape, faceBounds) => {
   ];
 };
 
-// Get face bounding box
 export const getFaceBounds = (controlPoints) => {
   const allX = Object.values(controlPoints).map(p => p.x);
   const allY = Object.values(controlPoints).map(p => p.y);
@@ -92,7 +90,6 @@ export const getFaceBounds = (controlPoints) => {
   return { minX, minY, maxX, maxY, width, height, area };
 };
 
-// Label a shape based on proximity to control points
 export const labelShape = (shape, controlPoints, faceBounds) => {
   const features = extractFeatures(shape, faceBounds);
   if (!features) return 'other';
@@ -140,19 +137,18 @@ export const labelShape = (shape, controlPoints, faceBounds) => {
   return 'other';
 };
 
-// Train k-NN classifier
 export const trainKNNClassifier = async (examples) => {
   const vectors = [];
 
   for (const example of examples) {
     const faceBounds = getFaceBounds(example.controlPoints);
-    
+
     for (const shape of example.paths) {
       const features = extractFeatures(shape, faceBounds);
       if (!features) continue;
 
       const label = labelShape(shape, example.controlPoints, faceBounds);
-      
+
       vectors.push({ features, label });
     }
   }
@@ -175,13 +171,13 @@ export const knnPredict = (features, model, k = 5) => {
     let dotProduct = 0;
     let normA = 0;
     let normB = 0;
-    
+
     for (let i = 0; i < features.length; i++) {
       dotProduct += features[i] * v.features[i];
       normA += features[i] * features[i];
       normB += v.features[i] * v.features[i];
     }
-    
+
     const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-10);
     return { label: v.label, similarity };
   });

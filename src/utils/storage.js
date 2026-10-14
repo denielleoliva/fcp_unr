@@ -1,7 +1,3 @@
-// Persistent Storage Helper
-// Uses window.storage (artifact persistent storage) with localStorage as fallback.
-// All training data and the kNN model survive browser clears via window.storage.
-
 const store = {
   async get(key) {
     try {

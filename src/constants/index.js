@@ -1,4 +1,3 @@
-// 6 Basic Expressions (Ekman's universal emotions)
 export const EXPRESSIONS = {
   neutral: {
     name: 'Neutral',
@@ -72,31 +71,28 @@ export const EXPRESSIONS = {
   },
 };
 
-// Initial control points (26 facial landmarks)
 export const INITIAL_CONTROL_POINTS = {
-  // Eyes (5 points each)
+
   leftEyeCenter: { x: 250, y: 200 },
   leftEyeTop: { x: 250, y: 185 },
   leftEyeBottom: { x: 250, y: 215 },
   leftEyeInner: { x: 265, y: 200 },
   leftEyeOuter: { x: 235, y: 200 },
-  
+
   rightEyeCenter: { x: 550, y: 200 },
   rightEyeTop: { x: 550, y: 185 },
   rightEyeBottom: { x: 550, y: 215 },
   rightEyeInner: { x: 535, y: 200 },
   rightEyeOuter: { x: 565, y: 200 },
-  
-  // Eyebrows (3 points each)
+
   leftEyebrowInner: { x: 270, y: 160 },
   leftEyebrowMiddle: { x: 250, y: 150 },
   leftEyebrowOuter: { x: 230, y: 160 },
-  
+
   rightEyebrowInner: { x: 530, y: 160 },
   rightEyebrowMiddle: { x: 550, y: 150 },
   rightEyebrowOuter: { x: 570, y: 160 },
-  
-  // Mouth (8 points)
+
   mouthLeftCorner: { x: 300, y: 400 },
   mouthRightCorner: { x: 500, y: 400 },
   mouthTopLeft: { x: 350, y: 380 },
@@ -107,7 +103,6 @@ export const INITIAL_CONTROL_POINTS = {
   mouthBottomRight: { x: 450, y: 420 },
 };
 
-// Brush styles
 export const BRUSH_STYLES = {
   solid: 'none',
   dashed: '10,5',

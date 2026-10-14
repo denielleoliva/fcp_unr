@@ -1,7 +1,3 @@
-// Viseme System for Speech Animation
-// Based on standard phoneme-to-viseme mapping used in speech animation
-
-// 14 Standard Visemes (Disney/Pixar standard)
 export const VISEMES = {
   sil: {
     name: 'Silence',
@@ -146,75 +142,63 @@ export const VISEMES = {
 
 // Phoneme to Viseme mapping (CMU Pronouncing Dictionary phonemes)
 export const PHONEME_TO_VISEME = {
-  // Silence
+
   'sil': 'sil',
   'sp': 'sil',
-  
-  // Bilabials (lips together)
+
   'p': 'PP',
   'b': 'PP',
   'm': 'PP',
-  
-  // Labiodentals (lip to teeth)
+
   'f': 'FF',
   'v': 'FF',
-  
-  // Dental (tongue between teeth)
+
   'th': 'TH',
   'dh': 'TH',
-  
-  // Alveolar (tongue to roof)
+
   't': 'DD',
   'd': 'DD',
   'n': 'nn',
   'l': 'DD',
   's': 'SS',
   'z': 'SS',
-  
-  // Post-alveolar
+
   'sh': 'CH',
   'zh': 'CH',
   'ch': 'CH',
   'jh': 'CH',
-  
-  // Velar (back of tongue)
+
   'k': 'kk',
   'g': 'kk',
   'ng': 'nn',
-  
-  // Approximants
+
   'r': 'RR',
   'w': 'U',
   'y': 'I',
   'hh': 'kk',
-  
-  // Vowels - Open
+
   'aa': 'aa',  // father
   'ao': 'aa',  // bought
   'aw': 'aa',  // down
-  
-  // Vowels - Mid
+
   'eh': 'E',   // bed
   'ae': 'E',   // bat
   'ah': 'E',   // but
   'er': 'RR',  // bird
   'ax': 'E',   // about
-  
-  // Vowels - Close
+
   'ih': 'I',   // bit
   'iy': 'I',   // beat
   'ey': 'E',   // bait
-  
-  // Vowels - Rounded
+
   'ow': 'O',   // boat
   'oy': 'O',   // boy
   'uh': 'U',   // book
   'uw': 'U',   // boot
 };
 
-// Simple English phoneme guesser (for when TTS doesn't provide phonemes)
 export const WORD_TO_PHONEMES = {
-  // Common words
+
   'hello': ['hh', 'eh', 'l', 'ow'],
   'hi': ['hh', 'ay'],
   'the': ['dh', 'ah'],
@@ -261,21 +245,18 @@ export const WORD_TO_PHONEMES = {
 // Simple rule-based phoneme guesser for unknown words
 export function guessPhonemes(word) {
   word = word.toLowerCase().trim();
-  
-  // Check lookup table first
+
   if (WORD_TO_PHONEMES[word]) {
     return WORD_TO_PHONEMES[word];
   }
-  
-  // Simple heuristic rules (very basic, not accurate)
+
   const phonemes = [];
   const letters = word.split('');
-  
+
   for (let i = 0; i < letters.length; i++) {
     const char = letters[i];
     const next = letters[i + 1];
-    
-    // Consonants
+
     if (char === 'p') phonemes.push('p');
     else if (char === 'b') phonemes.push('b');
     else if (char === 'm') phonemes.push('m');
@@ -293,33 +274,30 @@ export function guessPhonemes(word) {
     else if (char === 'w') phonemes.push('w');
     else if (char === 'y') phonemes.push('y');
     else if (char === 'h') phonemes.push('hh');
-    
-    // Digraphs
+
     else if (char === 't' && next === 'h') { phonemes.push('th'); i++; }
     else if (char === 's' && next === 'h') { phonemes.push('sh'); i++; }
     else if (char === 'c' && next === 'h') { phonemes.push('ch'); i++; }
     else if (char === 'n' && next === 'g') { phonemes.push('ng'); i++; }
-    
-    // Vowels (very simplified)
+
     else if (char === 'a') phonemes.push('ae');
     else if (char === 'e') phonemes.push('eh');
     else if (char === 'i') phonemes.push('ih');
     else if (char === 'o') phonemes.push('ow');
     else if (char === 'u') phonemes.push('uh');
   }
-  
+
   return phonemes.length > 0 ? phonemes : ['sil'];
 }
 
-// Convert phonemes to viseme sequence with timing
 export function phonemesToVisemes(phonemes, duration) {
   const visemeSequence = [];
   const phonemeDuration = duration / phonemes.length;
-  
+
   phonemes.forEach((phoneme, index) => {
     const visemeKey = PHONEME_TO_VISEME[phoneme] || 'sil';
     const viseme = VISEMES[visemeKey];
-    
+
     visemeSequence.push({
       viseme: visemeKey,
       params: viseme,
@@ -328,30 +306,28 @@ export function phonemesToVisemes(phonemes, duration) {
       phoneme: phoneme,
     });
   });
-  
+
   return visemeSequence;
 }
 
-// Parse text into words and generate viseme timeline
 export function textToVisemes(text, wordsPerSecond = 2.5) {
   const words = text.toLowerCase().match(/\b[\w']+\b/g) || [];
   const totalDuration = words.length / wordsPerSecond;
-  
+
   const allPhonemes = [];
   words.forEach(word => {
     const phonemes = guessPhonemes(word);
     allPhonemes.push(...phonemes);
-    allPhonemes.push('sp'); // Short pause between words
+    allPhonemes.push('sp');
   });
-  
+
   return phonemesToVisemes(allPhonemes, totalDuration);
 }
 
-// Interpolate between two visemes (for smooth transitions)
 export function interpolateVisemes(viseme1, viseme2, t) {
   const v1 = VISEMES[viseme1];
   const v2 = VISEMES[viseme2];
-  
+
   return {
     mouthOpen: v1.mouthOpen + (v2.mouthOpen - v1.mouthOpen) * t,
     mouthCurve: v1.mouthCurve + (v2.mouthCurve - v1.mouthCurve) * t,
