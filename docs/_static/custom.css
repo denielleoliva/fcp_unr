@@ -1,0 +1,4 @@
+.wy-side-nav-search, .wy-nav-top { background: #087f82; }
+.wy-nav-content { max-width: 1000px; }
+.wy-table-responsive table td, .wy-table-responsive table th { white-space: normal; }
+.wy-table-responsive { overflow-x: auto; }
